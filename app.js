@@ -24,6 +24,7 @@ function updateTime() {
 function setupEventListeners() {
   document.getElementById('auth-form')?.addEventListener('submit', login);
   document.getElementById('signup-btn')?.addEventListener('click', signup);
+  document.getElementById('forgot-btn')?.addEventListener('click', forgotPassword);
   document.getElementById('admin-btn')?.addEventListener('click', showAdmin);
   document.getElementById('exit-admin')?.addEventListener('click', showKiosk);
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
@@ -93,6 +94,16 @@ async function signup() {
   const { error } = await db.auth.signUp({ email, password });
   if (error) return alert(error.message);
   alert('Account created! Check your email to confirm, then log in.');
+}
+
+async function forgotPassword() {
+  const email = document.getElementById('email').value;
+  if (!email) return alert('Enter your email first');
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+  if (error) return alert(error.message);
+  alert('Password reset email sent. Check your inbox.');
 }
 
 function handleKey(d) {
