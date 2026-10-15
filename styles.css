@@ -1,0 +1,28 @@
+* { box-sizing: border-box; }
+body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #f8fafc; }
+.screen { display: none; }
+.screen.active { display: block; }
+.logo { text-align: center; margin: 2rem 0; }
+.clock-icon { width: 48px; height: 48px; background: #2563eb; border-radius: 50%; display: inline-block; position: relative; }
+.clock-icon::after { content: ''; position: absolute; width: 2px; height: 16px; background: white; left: 50%; top: 12px; transform: translateX(-50%); }
+.logo h1 { margin: 0.5rem 0 0; font-weight: 700; color: #0f172a; }
+#auth-form { max-width: 320px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+input, button { padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; font-size: 1rem; }
+button { background: #2563eb; color: white; border: none; cursor: pointer; }
+.note { text-align: center; color: #64748b; font-size: 0.875rem; margin-top: 1.5rem; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #2563eb; color: white; }
+.logo-small { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+.logo-small .clock-icon { width: 24px; height: 24px; }
+#pin-display { font-size: 2rem; text-align: center; margin: 2rem 0; letter-spacing: 0.5rem; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; max-width: 300px; margin: 0 auto; }
+.key { padding: 1.5rem; font-size: 1.5rem; }
+#welcome-message { font-size: 2.5rem; text-align: center; margin: 2rem 0; font-weight: 700; }
+.action-buttons { display: flex; flex-direction: column; gap: 1rem; max-width: 400px; margin: 0 auto; }
+.action-btn { padding: 1.25rem; font-size: 1.25rem; }
+.status { text-align: center; margin: 1rem; font-weight: 600; }
+.status.error { color: #dc2626; }
+.tabs { display: flex; gap: 0.5rem; padding: 1rem; background: white; }
+.tab { flex: 1; }
+.tab.active { background: #1e40af; }
+.tab-content { padding: 1rem; }
+.staff-item, .timesheet-item { display: flex; justify-content: space-between; padding: 0.75rem; background: white; margin-bottom: 0.5rem; border-radius: 0.5rem; }
