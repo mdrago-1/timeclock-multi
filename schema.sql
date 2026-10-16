@@ -54,7 +54,7 @@ create table if not exists documents (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references profiles(id) on delete cascade not null,
   staff_id uuid references staff(id) on delete cascade not null,
-  type text not null, -- e.g. 'right_to_work', 'contract', 'other'
+  type text not null,
   file_url text not null,
   file_name text,
   uploaded_at timestamptz default now()
@@ -67,20 +67,27 @@ alter table clocks enable row level security;
 alter table schedules enable row level security;
 alter table documents enable row level security;
 
--- Policies
-create policy if not exists "Owners manage own profile" on profiles
+-- Drop existing policies if they exist (safe to re-run)
+drop policy if exists "Owners manage own profile" on profiles;
+drop policy if exists "Owners manage own staff" on staff;
+drop policy if exists "Owners manage own clocks" on clocks;
+drop policy if exists "Owners manage own schedules" on schedules;
+drop policy if exists "Owners manage own documents" on documents;
+
+-- Recreate policies
+create policy "Owners manage own profile" on profiles
   for all using (id = auth.uid()) with check (id = auth.uid());
 
-create policy if not exists "Owners manage own staff" on staff
+create policy "Owners manage own staff" on staff
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
-create policy if not exists "Owners manage own clocks" on clocks
+create policy "Owners manage own clocks" on clocks
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
-create policy if not exists "Owners manage own schedules" on schedules
+create policy "Owners manage own schedules" on schedules
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
-create policy if not exists "Owners manage own documents" on documents
+create policy "Owners manage own documents" on documents
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
 -- Auto-create profile on signup
