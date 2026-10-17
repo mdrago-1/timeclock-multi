@@ -131,6 +131,15 @@ function showMemberPortal(staff) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('member-screen').classList.add('active');
   const content = document.getElementById('member-content');
+  if (staff.starter_form_completed) {
+    content.innerHTML = `
+      <h2>${staff.name}</h2>
+      <p style="margin-top:1.5rem; color:#16a34a; font-weight:600;">Your starter form has been submitted and locked.</p>
+      <p style="color:#64748b;">Contact your manager if you need to update any details.</p>
+      <button onclick="showKiosk()" style="margin-top:1.5rem;">Back to Kiosk</button>
+    `;
+    return;
+  }
   const [first = '', ...rest] = (staff.name || '').split(' ');
   const last = rest.join(' ');
   const data = staff.starter_form_data || {};
@@ -227,6 +236,7 @@ function showMemberPortal(staff) {
 
 async function submitStarterForm(e, staffId) {
   e.preventDefault();
+  if (!confirm('Confirm all info is correct as this can\'t be undone. Submit now?')) return;
   const formData = {
     agreed_start_date: document.getElementById('sf-start-date').value,
     agreed_pay_rate: document.getElementById('sf-pay-rate').value,
@@ -288,7 +298,8 @@ async function submitStarterForm(e, staffId) {
   };
   const { error } = await db.from('staff').update(updates).eq('id', staffId);
   if (error) return alert(error.message);
-  alert('Form submitted and recorded. Thank you!');
+  alert('Form submitted and locked. Thank you!');
+  showMemberPortal({ ...updates, id: staffId, name: updates.name });
 }
 
 function showPin() {
@@ -423,6 +434,7 @@ async function loadSettings() {
       <input type="file" id="logo-file" accept="image/*" required>
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
+    <p style="margin-top:1rem; font-size:0.85rem; color:#64748b;">If upload fails, create a public bucket named <strong>photos</strong> in Supabase Storage.</p>
   `;
   document.getElementById('logo-form').onsubmit = uploadLogo;
 }
@@ -433,7 +445,7 @@ async function uploadLogo(e) {
   if (!file) return;
   const path = `${currentUser.id}/logo-${Date.now()}-${file.name}`;
   const { error: upErr } = await db.storage.from('photos').upload(path, file);
-  if (upErr) return alert(upErr.message);
+  if (upErr) return alert(upErr.message + ' — Create a public bucket named "photos" in Supabase Storage if it does not exist.');
   const { data } = db.storage.from('photos').getPublicUrl(path);
   const { error } = await db.from('profiles').update({ logo_url: data.publicUrl }).eq('id', currentUser.id);
   if (error) return alert(error.message);
@@ -486,6 +498,17 @@ async function deleteStaff(id) {
 window.deleteStaff = deleteStaff;
 window.openEmployeeProfile = openEmployeeProfile;
 
+async function resetStarterForm(staffId) {
+  if (!confirm('Allow this employee to fill out the starter form again? Previous answers will be kept in the record.')) return;
+  const { error } = await db.from('staff').update({
+    starter_form_completed: false
+  }).eq('id', staffId);
+  if (error) return alert(error.message);
+  alert('Form unlocked. Employee can submit a new one.');
+  openEmployeeProfile(staffId);
+}
+window.resetStarterForm = resetStarterForm;
+
 function renderStarterFormMirror(data, completedAt) {
   if (!data) return '<p>No starter form data.</p>';
   const tick = (v) => v ? '✓' : '';
@@ -532,6 +555,7 @@ async function openEmployeeProfile(staffId) {
     <button onclick="loadStaff()" style="margin-bottom:1rem;">← Back to list</button>
     <h2 style="text-align:left; margin:0 0 1.5rem;">${staff.name}</h2>
     ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
+    ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
     <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
       <label>First Name<br><input type="text" id="edit-first" value="${first}" style="width:100%;"></label>
       <label>Last Name<br><input type="text" id="edit-last" value="${last}" style="width:100%;"></label>
