@@ -5,6 +5,7 @@ let currentUser = null;
 let selectedRange = 'this-week';
 let currentWeekOffset = 0;
 const ADMIN_PASSWORD = '0506';
+const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
 
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await db.auth.getSession();
@@ -428,13 +429,13 @@ async function loadSettings() {
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
   tab.innerHTML = `
     <h3>Business Logo</h3>
-    <p>Upload your logo to appear next to the TimeClock logo.</p>
+    <p>Upload your logo to appear next to the TimeClock logo. Max size 2 MB.</p>
     ${profile?.logo_url ? `<img src="${profile.logo_url}" style="max-height:60px; margin:1rem 0;">` : '<p>No logo uploaded yet.</p>'}
     <form id="logo-form" style="margin-top:1rem;">
       <input type="file" id="logo-file" accept="image/*" required>
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
-    <p style="margin-top:1rem; font-size:0.85rem; color:#64748b;">If upload fails, create a public bucket named <strong>photos</strong> in Supabase Storage.</p>
+    <p style="margin-top:1rem; font-size:0.85rem; color:#64748b;">Create a public bucket named <strong>logos</strong> in Supabase Storage if it does not exist.</p>
   `;
   document.getElementById('logo-form').onsubmit = uploadLogo;
 }
@@ -443,10 +444,13 @@ async function uploadLogo(e) {
   e.preventDefault();
   const file = document.getElementById('logo-file').files[0];
   if (!file) return;
+  if (file.size > MAX_LOGO_SIZE) {
+    return alert('Logo must be under 2 MB');
+  }
   const path = `${currentUser.id}/logo-${Date.now()}-${file.name}`;
-  const { error: upErr } = await db.storage.from('photos').upload(path, file);
-  if (upErr) return alert(upErr.message + ' — Create a public bucket named "photos" in Supabase Storage if it does not exist.');
-  const { data } = db.storage.from('photos').getPublicUrl(path);
+  const { error: upErr } = await db.storage.from('logos').upload(path, file);
+  if (upErr) return alert(upErr.message + ' — Create a public bucket named "logos" in Supabase Storage if it does not exist.');
+  const { data } = db.storage.from('logos').getPublicUrl(path);
   const { error } = await db.from('profiles').update({ logo_url: data.publicUrl }).eq('id', currentUser.id);
   if (error) return alert(error.message);
   alert('Logo uploaded');
