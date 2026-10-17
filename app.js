@@ -132,107 +132,141 @@ function showMemberPortal(staff) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('member-screen').classList.add('active');
   const content = document.getElementById('member-content');
-  if (staff.starter_form_completed) {
-    content.innerHTML = `
-      <h2>${staff.name}</h2>
-      <p style="margin-top:1.5rem; color:#16a34a; font-weight:600;">Your starter form has been submitted and locked.</p>
-      <p style="color:#64748b;">Contact your manager if you need to update any details.</p>
-      <button onclick="showKiosk()" style="margin-top:1.5rem;">Back to Kiosk</button>
+  let formSection = '';
+  if (!staff.starter_form_completed) {
+    const [first = '', ...rest] = (staff.name || '').split(' ');
+    const last = rest.join(' ');
+    const data = staff.starter_form_data || {};
+    formSection = `
+      <h3 style="margin-top:1.5rem;">New Starter Details Form</h3>
+      <p style="color:#64748b; font-size:0.9rem;">All sections are required. Complete and submit before your first shift.</p>
+      <form id="starter-form" style="display:flex; flex-direction:column; gap:1.25rem; max-width:560px; text-align:left;">
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">Agreed details</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+            <label>Agreed start date (DD/MM/YYYY)<br><input type="date" id="sf-start-date" value="${data.agreed_start_date || ''}" required style="width:100%;"></label>
+            <label>Agreed pay rate (£ per hour)<br><input type="number" id="sf-pay-rate" step="0.01" min="0" value="${data.agreed_pay_rate || ''}" required style="width:100%;"></label>
+          </div>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">1. You</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+            <label>First name<br><input type="text" id="sf-first" value="${data.first_name || first}" required style="width:100%;"></label>
+            <label>Last name<br><input type="text" id="sf-last" value="${data.last_name || last}" required style="width:100%;"></label>
+            <label>Preferred name (if different)<br><input type="text" id="sf-preferred" value="${data.preferred_name || ''}" style="width:100%;"></label>
+            <label>Date of birth (DD/MM/YYYY)<br><input type="date" id="sf-dob" value="${data.dob || staff.dob || ''}" required style="width:100%;"></label>
+            <label>Mobile<br><input type="tel" id="sf-mobile" value="${data.mobile || staff.phone || ''}" required style="width:100%;"></label>
+            <label>Email<br><input type="email" id="sf-email" value="${data.email || staff.email || ''}" required style="width:100%;"></label>
+            <label style="grid-column:1 / -1;">Home address<br><textarea id="sf-address" required style="width:100%; min-height:60px;">${data.home_address || staff.address || ''}</textarea></label>
+            <label>Town / city<br><input type="text" id="sf-town" value="${data.town || ''}" required style="width:100%;"></label>
+            <label>Postcode<br><input type="text" id="sf-postcode" value="${data.postcode || ''}" required style="width:100%;"></label>
+          </div>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">2. Emergency contact</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+            <label>Name<br><input type="text" id="sf-em-name" value="${data.emergency_name || staff.emergency_contact || ''}" required style="width:100%;"></label>
+            <label>Relationship<br><input type="text" id="sf-em-rel" value="${data.emergency_relationship || ''}" required style="width:100%;"></label>
+            <label>Phone<br><input type="tel" id="sf-em-phone" value="${data.emergency_phone || staff.emergency_phone || ''}" required style="width:100%;"></label>
+          </div>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">3. Pay (so we can pay you)</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+            <label>Account holder name<br><input type="text" id="sf-bank-name" value="${data.bank_account_name || staff.bank_account_name || ''}" required style="width:100%;"></label>
+            <label>Sort code<br><input type="text" id="sf-sort" value="${data.bank_sort_code || staff.bank_sort_code || ''}" placeholder="00-00-00" required style="width:100%;"></label>
+            <label>Account number<br><input type="text" id="sf-acc" value="${data.bank_account_number || staff.bank_account_number || ''}" required style="width:100%;"></label>
+            <label>National Insurance number<br><input type="text" id="sf-ni" value="${data.ni_number || staff.ni_number || ''}" required style="width:100%;"></label>
+            <label>Student loan to repay?<br>
+              <select id="sf-student-loan" required style="width:100%;">
+                <option value="">Select</option>
+                <option value="yes" ${data.student_loan === 'yes' ? 'selected' : ''}>Yes</option>
+                <option value="no" ${data.student_loan === 'no' ? 'selected' : ''}>No</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">4. Right to work in the UK</h4>
+          <p style="margin:0.5rem 0; font-size:0.9rem;">Bring original documents or a share code on or before day one. Tick what you will use:</p>
+          <label><input type="checkbox" id="sf-rtw-passport" ${data.rtw_passport ? 'checked' : ''}> UK / Irish passport</label><br>
+          <label><input type="checkbox" id="sf-rtw-share" ${data.rtw_share_code ? 'checked' : ''}> Home Office share code</label><br>
+          <label><input type="checkbox" id="sf-rtw-other" ${data.rtw_other ? 'checked' : ''}> Other accepted document</label><br>
+          <label style="margin-top:0.5rem; display:block;">Share code (if you have one)<br><input type="text" id="sf-share-code" value="${data.share_code || ''}" style="width:100%;"></label>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">5. Work and availability</h4>
+          <label>Days you can usually work<br><input type="text" id="sf-days" value="${data.days_available || ''}" required style="width:100%;"></label>
+          <label style="margin-top:0.5rem; display:block;">Do you have another job? If yes, where and which days?<br><textarea id="sf-other-job" style="width:100%; min-height:50px;">${data.other_job || ''}</textarea></label>
+          <label style="margin-top:0.5rem; display:block;"><input type="checkbox" id="sf-hygiene-yes" ${data.hygiene_level2 ? 'checked' : ''}> I already hold Level 2 Food Hygiene</label>
+          <label><input type="checkbox" id="sf-hygiene-no" ${data.hygiene_will_complete ? 'checked' : ''}> I do not — I will complete it within 2 weeks</label>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">6. Health note for food handling (optional)</h4>
+          <textarea id="sf-health" style="width:100%; min-height:60px;">${data.health_note || ''}</textarea>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">7. Photos and video at work</h4>
+          <p style="margin:0.5rem 0; font-size:0.9rem;">The shop photographs and films the workplace for social media and promotion. Staff may appear.</p>
+          <label><input type="checkbox" id="sf-photos" required ${data.photos_consent ? 'checked' : ''}> I understand I may appear in workplace photos and video used to promote the shop</label>
+        </div>
+        <div>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">8. Confirm</h4>
+          <label><input type="checkbox" id="sf-true" required ${data.confirm_true ? 'checked' : ''}> The details on this form are true</label><br>
+          <label><input type="checkbox" id="sf-contract" required ${data.confirm_contract ? 'checked' : ''}> I understand I will be sent a contract to read and must confirm it before I start</label><br>
+          <label><input type="checkbox" id="sf-phones" required ${data.confirm_phones ? 'checked' : ''}> I understand there are no personal phones on the shop floor</label><br>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
+            <label>Full name (acts as your signature)<br><input type="text" id="sf-signature" value="${data.signature_name || ''}" required style="width:100%;"></label>
+            <label>Date<br><input type="date" id="sf-sig-date" value="${data.signature_date || ''}" required style="width:100%;"></label>
+          </div>
+        </div>
+        <button type="submit" style="margin-top:0.5rem;">Submit Form</button>
+      </form>
     `;
-    return;
+  } else {
+    formSection = `<p style="margin-top:1.5rem; color:#16a34a; font-weight:600;">Your starter form has been submitted and locked.</p>
+      <p style="color:#64748b;">Contact your manager if you need to update any details.</p>`;
   }
-  const [first = '', ...rest] = (staff.name || '').split(' ');
-  const last = rest.join(' ');
-  const data = staff.starter_form_data || {};
   content.innerHTML = `
     <h2>${staff.name}</h2>
-    <h3 style="margin-top:1.5rem;">New Starter Details Form</h3>
-    <p style="color:#64748b; font-size:0.9rem;">All sections are required. Complete and submit before your first shift.</p>
-    <form id="starter-form" style="display:flex; flex-direction:column; gap:1.25rem; max-width:560px; text-align:left;">
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">Agreed details</h4>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
-          <label>Agreed start date (DD/MM/YYYY)<br><input type="date" id="sf-start-date" value="${data.agreed_start_date || ''}" required style="width:100%;"></label>
-          <label>Agreed pay rate (£ per hour)<br><input type="number" id="sf-pay-rate" step="0.01" min="0" value="${data.agreed_pay_rate || ''}" required style="width:100%;"></label>
-        </div>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">1. You</h4>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
-          <label>First name<br><input type="text" id="sf-first" value="${data.first_name || first}" required style="width:100%;"></label>
-          <label>Last name<br><input type="text" id="sf-last" value="${data.last_name || last}" required style="width:100%;"></label>
-          <label>Preferred name (if different)<br><input type="text" id="sf-preferred" value="${data.preferred_name || ''}" style="width:100%;"></label>
-          <label>Date of birth (DD/MM/YYYY)<br><input type="date" id="sf-dob" value="${data.dob || staff.dob || ''}" required style="width:100%;"></label>
-          <label>Mobile<br><input type="tel" id="sf-mobile" value="${data.mobile || staff.phone || ''}" required style="width:100%;"></label>
-          <label>Email<br><input type="email" id="sf-email" value="${data.email || staff.email || ''}" required style="width:100%;"></label>
-          <label style="grid-column:1 / -1;">Home address<br><textarea id="sf-address" required style="width:100%; min-height:60px;">${data.home_address || staff.address || ''}</textarea></label>
-          <label>Town / city<br><input type="text" id="sf-town" value="${data.town || ''}" required style="width:100%;"></label>
-          <label>Postcode<br><input type="text" id="sf-postcode" value="${data.postcode || ''}" required style="width:100%;"></label>
-        </div>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">2. Emergency contact</h4>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
-          <label>Name<br><input type="text" id="sf-em-name" value="${data.emergency_name || staff.emergency_contact || ''}" required style="width:100%;"></label>
-          <label>Relationship<br><input type="text" id="sf-em-rel" value="${data.emergency_relationship || ''}" required style="width:100%;"></label>
-          <label>Phone<br><input type="tel" id="sf-em-phone" value="${data.emergency_phone || staff.emergency_phone || ''}" required style="width:100%;"></label>
-        </div>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">3. Pay (so we can pay you)</h4>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
-          <label>Account holder name<br><input type="text" id="sf-bank-name" value="${data.bank_account_name || staff.bank_account_name || ''}" required style="width:100%;"></label>
-          <label>Sort code<br><input type="text" id="sf-sort" value="${data.bank_sort_code || staff.bank_sort_code || ''}" placeholder="00-00-00" required style="width:100%;"></label>
-          <label>Account number<br><input type="text" id="sf-acc" value="${data.bank_account_number || staff.bank_account_number || ''}" required style="width:100%;"></label>
-          <label>National Insurance number<br><input type="text" id="sf-ni" value="${data.ni_number || staff.ni_number || ''}" required style="width:100%;"></label>
-          <label>Student loan to repay?<br>
-            <select id="sf-student-loan" required style="width:100%;">
-              <option value="">Select</option>
-              <option value="yes" ${data.student_loan === 'yes' ? 'selected' : ''}>Yes</option>
-              <option value="no" ${data.student_loan === 'no' ? 'selected' : ''}>No</option>
-            </select>
-          </label>
-        </div>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">4. Right to work in the UK</h4>
-        <p style="margin:0.5rem 0; font-size:0.9rem;">Bring original documents or a share code on or before day one. Tick what you will use:</p>
-        <label><input type="checkbox" id="sf-rtw-passport" ${data.rtw_passport ? 'checked' : ''}> UK / Irish passport</label><br>
-        <label><input type="checkbox" id="sf-rtw-share" ${data.rtw_share_code ? 'checked' : ''}> Home Office share code</label><br>
-        <label><input type="checkbox" id="sf-rtw-other" ${data.rtw_other ? 'checked' : ''}> Other accepted document</label><br>
-        <label style="margin-top:0.5rem; display:block;">Share code (if you have one)<br><input type="text" id="sf-share-code" value="${data.share_code || ''}" style="width:100%;"></label>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">5. Work and availability</h4>
-        <label>Days you can usually work<br><input type="text" id="sf-days" value="${data.days_available || ''}" required style="width:100%;"></label>
-        <label style="margin-top:0.5rem; display:block;">Do you have another job? If yes, where and which days?<br><textarea id="sf-other-job" style="width:100%; min-height:50px;">${data.other_job || ''}</textarea></label>
-        <label style="margin-top:0.5rem; display:block;"><input type="checkbox" id="sf-hygiene-yes" ${data.hygiene_level2 ? 'checked' : ''}> I already hold Level 2 Food Hygiene</label>
-        <label><input type="checkbox" id="sf-hygiene-no" ${data.hygiene_will_complete ? 'checked' : ''}> I do not — I will complete it within 2 weeks</label>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">6. Health note for food handling (optional)</h4>
-        <textarea id="sf-health" style="width:100%; min-height:60px;">${data.health_note || ''}</textarea>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">7. Photos and video at work</h4>
-        <p style="margin:0.5rem 0; font-size:0.9rem;">The shop photographs and films the workplace for social media and promotion. Staff may appear.</p>
-        <label><input type="checkbox" id="sf-photos" required ${data.photos_consent ? 'checked' : ''}> I understand I may appear in workplace photos and video used to promote the shop</label>
-      </div>
-      <div>
-        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">8. Confirm</h4>
-        <label><input type="checkbox" id="sf-true" required ${data.confirm_true ? 'checked' : ''}> The details on this form are true</label><br>
-        <label><input type="checkbox" id="sf-contract" required ${data.confirm_contract ? 'checked' : ''}> I understand I will be sent a contract to read and must confirm it before I start</label><br>
-        <label><input type="checkbox" id="sf-phones" required ${data.confirm_phones ? 'checked' : ''}> I understand there are no personal phones on the shop floor</label><br>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
-          <label>Full name (acts as your signature)<br><input type="text" id="sf-signature" value="${data.signature_name || ''}" required style="width:100%;"></label>
-          <label>Date<br><input type="date" id="sf-sig-date" value="${data.signature_date || ''}" required style="width:100%;"></label>
-        </div>
-      </div>
-      <button type="submit" style="margin-top:0.5rem;">Submit Form</button>
-    </form>
+    ${formSection}
+    <h3 style="margin-top:2rem;">My Hours</h3>
+    <div id="member-hours" style="margin-top:0.5rem;">Loading...</div>
     <button onclick="showKiosk()" style="margin-top:1.5rem;">Back to Kiosk</button>
   `;
-  document.getElementById('starter-form').onsubmit = (e) => submitStarterForm(e, staff.id);
+  if (!staff.starter_form_completed) {
+    document.getElementById('starter-form').onsubmit = (e) => submitStarterForm(e, staff.id);
+  }
+  loadMemberHours(staff.id);
+}
+
+async function loadMemberHours(staffId) {
+  const { data: clocks } = await db.from('clocks')
+    .select('*')
+    .eq('staff_id', staffId)
+    .order('timestamp', { ascending: false })
+    .limit(100);
+  const el = document.getElementById('member-hours');
+  if (!el) return;
+  if (!clocks?.length) {
+    el.innerHTML = '<p>No hours recorded yet.</p>';
+    return;
+  }
+  const byDate = {};
+  clocks.forEach(c => {
+    const date = new Date(c.timestamp).toISOString().slice(0,10);
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(c);
+  });
+  let html = '<table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.4rem;">Date</th><th style="border:1px solid #e2e8f0; padding:0.4rem;">Hours</th></tr></thead><tbody>';
+  let grand = 0;
+  Object.keys(byDate).sort().reverse().forEach(date => {
+    const hrs = calculateHours(byDate[date]);
+    grand += hrs;
+    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.4rem;">${new Date(date).toLocaleDateString('en-GB')}</td><td style="border:1px solid #e2e8f0; padding:0.4rem; text-align:center;">${hrs.toFixed(1)}</td></tr>`;
+  });
+  html += `<tr style="font-weight:600;"><td style="border:1px solid #e2e8f0; padding:0.4rem;">Total</td><td style="border:1px solid #e2e8f0; padding:0.4rem; text-align:center;">${grand.toFixed(1)}</td></tr></tbody></table>`;
+  el.innerHTML = html;
 }
 
 async function submitStarterForm(e, staffId) {
@@ -736,12 +770,12 @@ async function loadTimesheetSummary() {
   const range = getDateRange();
   if (!range) return;
   const { data: clocks } = await db.from('clocks')
-    .select('*, staff(name)')
+    .select('*, staff(name, email)')
     .eq('owner_id', currentUser.id)
     .gte('timestamp', range.start.toISOString())
     .lte('timestamp', range.end.toISOString())
     .order('timestamp');
-  const { data: staff } = await db.from('staff').select('id, name').eq('owner_id', currentUser.id).order('name');
+  const { data: staff } = await db.from('staff').select('id, name, email').eq('owner_id', currentUser.id).order('name');
   const summary = document.getElementById('timesheet-summary');
   if (!summary) return;
   if (!clocks?.length) {
@@ -749,7 +783,7 @@ async function loadTimesheetSummary() {
     return;
   }
   const byStaff = {};
-  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, days: {} });
+  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, email: s.email, days: {} });
   clocks.forEach(c => {
     if (!byStaff[c.staff_id]) return;
     const date = new Date(c.timestamp).toISOString().slice(0,10);
@@ -764,8 +798,8 @@ async function loadTimesheetSummary() {
     dates.push(d.toISOString().slice(0,10));
     html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${d.toLocaleDateString('en-GB', {day:'numeric', month:'short'})}</th>`;
   }
-  html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th></tr></thead><tbody>';
-  Object.values(byStaff).forEach(s => {
+  html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Actions</th></tr></thead><tbody>';
+  Object.entries(byStaff).forEach(([id, s]) => {
     html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     let total = 0;
     dates.forEach(date => {
@@ -773,11 +807,52 @@ async function loadTimesheetSummary() {
       total += hrs;
       html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${hrs > 0 ? hrs.toFixed(1) : ''}</td>`;
     });
-    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${total.toFixed(1)}</td></tr>`;
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${total.toFixed(1)}</td>`;
+    html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${id}','${s.name}','${s.email || ''}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
   });
   html += '</tbody></table>';
   summary.innerHTML = html;
 }
+
+async function sendTimesheetToMember(staffId, name, email) {
+  if (!email) return alert('No email on file for ' + name);
+  const range = getDateRange();
+  if (!range) return alert('Select a date range first');
+  const { data: clocks } = await db.from('clocks')
+    .select('*')
+    .eq('staff_id', staffId)
+    .gte('timestamp', range.start.toISOString())
+    .lte('timestamp', range.end.toISOString())
+    .order('timestamp');
+  const byDate = {};
+  (clocks || []).forEach(c => {
+    const date = new Date(c.timestamp).toISOString().slice(0,10);
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(c);
+  });
+  let html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:480px; margin:0 auto; color:#1e293b;">
+    <h1 style="font-size:1.4rem;">Your Hours</h1>
+    <p style="color:#64748b;">${formatDate(range.start)} – ${formatDate(range.end)}</p>
+    <table style="width:100%; border-collapse:collapse; margin-top:1rem;">`;
+  let total = 0;
+  Object.keys(byDate).sort().forEach(date => {
+    const hrs = calculateHours(byDate[date]);
+    total += hrs;
+    html += `<tr>
+      <td style="padding:0.6rem 0; border-bottom:1px solid #e2e8f0;">${new Date(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</td>
+      <td style="padding:0.6rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${hrs.toFixed(1)} hrs</td>
+    </tr>`;
+  });
+  html += `<tr><td style="padding:0.8rem 0; font-weight:600;">Total</td><td style="padding:0.8rem 0; text-align:right; font-weight:600;">${total.toFixed(1)} hrs</td></tr></table>
+  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from TimeClock</p></div>`;
+  try {
+    await sendEmail(email, `Your hours – ${formatDate(range.start)}`, html);
+    alert('Timesheet sent to ' + name);
+  } catch (err) {
+    alert('Failed to send: ' + (err.message || err));
+  }
+}
+window.sendTimesheetToMember = sendTimesheetToMember;
 
 window.setRange = (r) => {
   selectedRange = r;
