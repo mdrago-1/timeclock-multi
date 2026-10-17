@@ -4,6 +4,7 @@ let currentStaff = null;
 let currentUser = null;
 let selectedRange = 'this-week';
 let currentWeekOffset = 0;
+const ADMIN_PASSWORD = '0506';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await db.auth.getSession();
@@ -39,9 +40,15 @@ function setupEventListeners() {
   document.getElementById('auth-form')?.addEventListener('submit', login);
   document.getElementById('signup-btn')?.addEventListener('click', signup);
   document.getElementById('forgot-btn')?.addEventListener('click', forgotPassword);
-  document.getElementById('admin-btn')?.addEventListener('click', showAdmin);
+  document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
   document.getElementById('exit-admin')?.addEventListener('click', showKiosk);
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
+  document.getElementById('member-btn')?.addEventListener('click', showMemberLogin);
+  document.getElementById('cancel-admin')?.addEventListener('click', showKiosk);
+  document.getElementById('cancel-member')?.addEventListener('click', showKiosk);
+  document.getElementById('exit-member')?.addEventListener('click', showKiosk);
+  document.getElementById('admin-password-form')?.addEventListener('submit', checkAdminPassword);
+  document.getElementById('member-login-form')?.addEventListener('submit', memberLogin);
 
   const keypad = document.getElementById('keypad');
   if (keypad && !keypad.children.length) {
@@ -67,22 +74,66 @@ function setupEventListeners() {
 }
 
 function showAuth() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('auth-screen').classList.add('active');
-  document.getElementById('kiosk-screen').classList.remove('active');
-  document.getElementById('admin-screen').classList.remove('active');
 }
 
 function showKiosk() {
-  document.getElementById('auth-screen').classList.remove('active');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('kiosk-screen').classList.add('active');
-  document.getElementById('admin-screen').classList.remove('active');
   showPin();
 }
 
+function showAdminPassword() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('admin-password-screen').classList.add('active');
+  document.getElementById('admin-password').value = '';
+}
+
+function checkAdminPassword(e) {
+  e.preventDefault();
+  const pw = document.getElementById('admin-password').value;
+  if (pw === ADMIN_PASSWORD) {
+    showAdmin();
+  } else {
+    alert('Incorrect password');
+  }
+}
+
 function showAdmin() {
-  document.getElementById('kiosk-screen').classList.remove('active');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('admin-screen').classList.add('active');
   loadStaff();
+}
+
+function showMemberLogin() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('member-login-screen').classList.add('active');
+  document.getElementById('member-email').value = '';
+  document.getElementById('member-password').value = '';
+}
+
+async function memberLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('member-email').value;
+  const password = document.getElementById('member-password').value;
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  if (error) return alert(error.message);
+  // Find staff record by email
+  const { data: staff } = await db.from('staff').select('*').eq('email', email).eq('owner_id', currentUser.id).maybeSingle();
+  if (!staff) return alert('No staff profile found for this email');
+  showMemberPortal(staff);
+}
+
+function showMemberPortal(staff) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('member-screen').classList.add('active');
+  const content = document.getElementById('member-content');
+  content.innerHTML = `
+    <h2>${staff.name}</h2>
+    <p>Member portal — hours and documents coming soon.</p>
+    <button onclick="showKiosk()">Back to Kiosk</button>
+  `;
 }
 
 function showPin() {
@@ -171,11 +222,6 @@ async function showActions() {
     btn.onclick = () => recordAction(a.type);
     buttons.appendChild(btn);
   });
-  const profileBtn = document.createElement('button');
-  profileBtn.className = 'action-btn profile';
-  profileBtn.textContent = 'My Profile & Hours';
-  profileBtn.onclick = () => showEmployeeProfile(currentStaff.id);
-  buttons.appendChild(profileBtn);
 }
 
 async function recordAction(type) {
