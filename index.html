@@ -27,28 +27,40 @@
 
     <!-- Kiosk Screen -->
     <div id="kiosk-screen" class="screen">
-      <header>
+      <header class="kiosk-header">
         <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
         <div id="current-time"></div>
         <button id="admin-btn">Admin</button>
       </header>
-      <div id="pin-section">
-        <div id="pin-display">Enter PIN</div>
+      <div id="pin-section" class="pin-container">
+        <h2>Enter Your PIN</h2>
+        <div id="pin-dots" class="pin-dots"></div>
+        <p class="pin-hint">Enter your 4-digit PIN to clock in or out</p>
         <div class="keypad" id="keypad"></div>
       </div>
-      <div id="welcome-section" style="display:none;">
-        <div id="welcome-message"></div>
-        <div id="action-buttons"></div>
-        <button id="back-to-pin">Back</button>
+      <div id="welcome-section" class="welcome-container" style="display:none;">
+        <h1 id="welcome-message">Welcome</h1>
+        <div id="action-buttons" class="action-grid"></div>
+        <div class="bottom-logos">
+          <div class="shop-logo-placeholder">Shop</div>
+          <div class="divider"></div>
+          <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
+        </div>
+        <button id="back-to-pin" class="back-link">Back</button>
       </div>
       <div id="status-message"></div>
     </div>
 
     <!-- Admin Screen -->
     <div id="admin-screen" class="screen">
-      <header>
-        <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
-        <button id="exit-admin">Exit</button>
+      <header class="admin-header">
+        <div class="header-left">
+          <div class="shop-logo-placeholder small">Shop</div>
+          <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
+        </div>
+        <div class="header-right">
+          <button id="exit-admin">Exit</button>
+        </div>
       </header>
       <div class="tabs">
         <button class="tab active" data-tab="staff">Staff</button>
