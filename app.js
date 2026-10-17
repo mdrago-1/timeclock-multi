@@ -119,7 +119,6 @@ async function memberLogin(e) {
   const password = document.getElementById('member-password').value;
   const { data, error } = await db.auth.signInWithPassword({ email, password });
   if (error) return alert(error.message);
-  // Find staff record by email
   const { data: staff } = await db.from('staff').select('*').eq('email', email).eq('owner_id', currentUser.id).maybeSingle();
   if (!staff) return alert('No staff profile found for this email');
   showMemberPortal(staff);
@@ -449,9 +448,58 @@ async function loadTimesheets() {
       </div>
       <button onclick="exportHours()" style="margin-top:0.5rem;">Download CSV</button>
     </div>
-    <p>Select a range above and click Download CSV to export hours.</p>
+    <div id="timesheet-summary" style="margin-top:1.5rem;"></div>
   `;
   updateRangeDisplay();
+  loadTimesheetSummary();
+}
+
+async function loadTimesheetSummary() {
+  const range = getDateRange();
+  if (!range) return;
+  const { data: clocks } = await db.from('clocks')
+    .select('*, staff(name)')
+    .eq('owner_id', currentUser.id)
+    .gte('timestamp', range.start.toISOString())
+    .lte('timestamp', range.end.toISOString())
+    .order('timestamp');
+  const { data: staff } = await db.from('staff').select('id, name').eq('owner_id', currentUser.id).order('name');
+  const summary = document.getElementById('timesheet-summary');
+  if (!summary) return;
+  if (!clocks?.length) {
+    summary.innerHTML = '<p>No clock data in this range.</p>';
+    return;
+  }
+  // Group by staff and date
+  const byStaff = {};
+  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, days: {} });
+  clocks.forEach(c => {
+    if (!byStaff[c.staff_id]) return;
+    const date = new Date(c.timestamp).toISOString().slice(0,10);
+    if (!byStaff[c.staff_id].days[date]) byStaff[c.staff_id].days[date] = [];
+    byStaff[c.staff_id].days[date].push(c);
+  });
+  let html = '<h4>Daily Hours Summary</h4><table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>';
+  const dates = [];
+  const start = new Date(range.start);
+  const end = new Date(range.end);
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+    dates.push(d.toISOString().slice(0,10));
+    html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${d.toLocaleDateString('en-GB', {day:'numeric', month:'short'})}</th>`;
+  }
+  html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th></tr></thead><tbody>';
+  Object.values(byStaff).forEach(s => {
+    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
+    let total = 0;
+    dates.forEach(date => {
+      const hrs = calculateHours(s.days[date] || []);
+      total += hrs;
+      html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${hrs > 0 ? hrs.toFixed(1) : ''}</td>`;
+    });
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${total.toFixed(1)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  summary.innerHTML = html;
 }
 
 window.setRange = (r) => {
@@ -459,6 +507,7 @@ window.setRange = (r) => {
   const custom = document.getElementById('custom-range');
   if (custom) custom.style.display = r === 'custom' ? 'block' : 'none';
   updateRangeDisplay();
+  loadTimesheetSummary();
 };
 
 async function exportHours() {
@@ -471,10 +520,20 @@ async function exportHours() {
     .lte('timestamp', range.end.toISOString())
     .order('timestamp');
   if (!clocks?.length) return alert('No data in range');
-  const rows = [['Name','Type','Date','Time']];
+  const rows = [['Name','Type','Date','Time','Daily Hours']];
+  const byStaffDate = {};
+  clocks.forEach(c => {
+    const date = new Date(c.timestamp).toISOString().slice(0,10);
+    const key = `${c.staff?.name}|${date}`;
+    if (!byStaffDate[key]) byStaffDate[key] = [];
+    byStaffDate[key].push(c);
+  });
   clocks.forEach(c => {
     const d = new Date(c.timestamp);
-    rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})]);
+    const dateStr = d.toISOString().slice(0,10);
+    const key = `${c.staff?.name}|${dateStr}`;
+    const dailyHrs = calculateHours(byStaffDate[key] || []).toFixed(1);
+    rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}), dailyHrs]);
   });
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type: 'text/csv'});
@@ -534,6 +593,7 @@ async function loadSchedule() {
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Gross Wage</th>
         </tr></thead>
         <tbody>`;
+  let grandTotalWage = 0;
   (staff || []).forEach(s => {
     let totalHours = 0;
     table += `<tr data-name="${s.name}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
@@ -548,11 +608,16 @@ async function loadSchedule() {
       </td>`;
     });
     const rate = parseFloat(s.hourly_rate) || 0;
-    const wage = (totalHours * rate).toFixed(2);
+    const wage = totalHours * rate;
+    grandTotalWage += wage;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
-    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage}</td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
     table += '</tr>';
   });
+  table += `<tr style="background:#f1f5f9; font-weight:700;">
+    <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${days.length + 1}">Weekly Total</td>
+    <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
+  </tr>`;
   table += '</tbody></table></div>';
   table += `<div style="border-top:1px solid #e2e8f0; padding-top:1.5rem;">
     <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
@@ -570,6 +635,7 @@ async function saveScheduleTable() {
   const toInsert = [];
   rows.forEach(row => {
     const name = row.dataset.name;
+    if (!name) return;
     row.querySelectorAll('.shift-start').forEach((input, i) => {
       const date = input.dataset.date;
       const start = input.value;
