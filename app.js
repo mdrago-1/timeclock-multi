@@ -15,11 +15,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   setInterval(updateTime, 1000);
   updateTime();
+  updatePinDots();
 });
 
 function updateTime() {
   const el = document.getElementById('current-time');
   if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function updatePinDots() {
+  const container = document.getElementById('pin-dots');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'pin-dot' + (i < currentPin.length ? ' filled' : '');
+    container.appendChild(dot);
+  }
 }
 
 function setupEventListeners() {
@@ -76,7 +88,7 @@ function showPin() {
   document.getElementById('welcome-section').style.display = 'none';
   currentPin = '';
   currentStaff = null;
-  document.getElementById('pin-display').textContent = 'Enter PIN';
+  updatePinDots();
 }
 
 async function login(e) {
@@ -112,7 +124,7 @@ function handleKey(d) {
   if (d === 'C') currentPin = '';
   else if (d === '✓') { validatePin(); return; }
   else if (currentPin.length < 4) currentPin += d;
-  document.getElementById('pin-display').textContent = currentPin.padEnd(4, '•').split('').join(' ') || 'Enter PIN';
+  updatePinDots();
 }
 
 async function validatePin() {
@@ -125,7 +137,7 @@ async function validatePin() {
   if (error || !staff) {
     showStatus('Invalid PIN', 'error');
     currentPin = '';
-    document.getElementById('pin-display').textContent = 'Enter PIN';
+    updatePinDots();
     return;
   }
   currentStaff = staff;
@@ -145,20 +157,20 @@ async function showActions() {
   const buttons = document.getElementById('action-buttons');
   buttons.innerHTML = '';
   const actions = [
-    { type: 'in', label: 'Clock In', show: !last || last.type === 'out' },
-    { type: 'break_start', label: 'Start Break', show: last && last.type === 'in' },
-    { type: 'break_end', label: 'End Break', show: last && last.type === 'break_start' },
-    { type: 'out', label: 'Clock Out', show: last && (last.type === 'in' || last.type === 'break_end') }
+    { type: 'in', label: 'Clock In', cls: 'clock-in', show: !last || last.type === 'out' },
+    { type: 'break_start', label: 'Start Break', cls: 'start-break', show: last && last.type === 'in' },
+    { type: 'break_end', label: 'End Break', cls: 'end-break', show: last && last.type === 'break_start' },
+    { type: 'out', label: 'Clock Out', cls: 'clock-out', show: last && (last.type === 'in' || last.type === 'break_end') }
   ];
   actions.filter(a => a.show).forEach(a => {
     const btn = document.createElement('button');
-    btn.className = 'action-btn';
+    btn.className = `action-btn ${a.cls}`;
     btn.textContent = a.label;
     btn.onclick = () => recordAction(a.type);
     buttons.appendChild(btn);
   });
   const profileBtn = document.createElement('button');
-  profileBtn.className = 'action-btn';
+  profileBtn.className = 'action-btn profile';
   profileBtn.textContent = 'My Profile & Hours';
   profileBtn.onclick = () => showEmployeeProfile(currentStaff.id);
   buttons.appendChild(profileBtn);
@@ -293,12 +305,10 @@ async function uploadDocument(e, staffId) {
 }
 
 async function showEmployeeProfile(staffId) {
-  // Simple employee self-view
   const { data: staff } = await db.from('staff').select('*').eq('id', staffId).single();
   const { data: clocks } = await db.from('clocks').select('*').eq('staff_id', staffId).order('timestamp', { ascending: false });
   const hours = calculateHours(clocks || []);
   alert(`${staff.name}\nTotal hours logged: ${hours.toFixed(2)}\n\n(Full document upload available in admin for now)`);
-  // For a fuller view we could open a modal, but this is a start
 }
 
 function calculateHours(entries) {
