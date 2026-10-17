@@ -3,6 +3,7 @@ let currentPin = '';
 let currentStaff = null;
 let currentUser = null;
 let selectedRange = 'this-week';
+let currentWeekOffset = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await db.auth.getSession();
@@ -348,7 +349,7 @@ function getWeekRange(offsetWeeks = 0) {
 }
 
 function formatDate(d) {
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function getDateRange() {
@@ -437,8 +438,14 @@ function downloadScheduleTemplate() {
 }
 window.downloadScheduleTemplate = downloadScheduleTemplate;
 
+function changeWeek(offset) {
+  currentWeekOffset += offset;
+  loadSchedule();
+}
+window.changeWeek = changeWeek;
+
 async function loadSchedule() {
-  const week = getWeekRange(0);
+  const week = getWeekRange(currentWeekOffset);
   const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const dayDates = [];
   for (let i = 0; i < 7; i++) {
@@ -447,9 +454,20 @@ async function loadSchedule() {
     dayDates.push(d.toISOString().slice(0,10));
   }
   const { data: staff } = await db.from('staff').select('name').eq('owner_id', currentUser.id).order('name');
-  const { data: schedules } = await db.from('schedules').select('*').eq('owner_id', currentUser.id);
+  const startDate = week.start.toISOString().slice(0,10);
+  const endDate = week.end.toISOString().slice(0,10);
+  const { data: schedules } = await db.from('schedules')
+    .select('*')
+    .eq('owner_id', currentUser.id)
+    .gte('date', startDate)
+    .lte('date', endDate);
   const tab = document.getElementById('schedule-tab');
-  let table = `<h3>Schedule — Week commencing ${formatDate(week.start)}</h3>
+  const title = `${formatDate(week.start)} – ${formatDate(week.end)}`;
+  let table = `<div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+      <button onclick="changeWeek(-1)" style="font-size:1.2rem;">←</button>
+      <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
+      <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
+    </div>
     <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
     <button onclick="downloadScheduleTemplate()" style="margin-left:0.5rem;">Download template</button></p>
     <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
@@ -480,6 +498,7 @@ async function loadSchedule() {
 }
 
 async function saveScheduleTable() {
+  const week = getWeekRange(currentWeekOffset);
   const rows = document.querySelectorAll('#schedule-tab tbody tr');
   const toInsert = [];
   rows.forEach(row => {
@@ -493,14 +512,13 @@ async function saveScheduleTable() {
       }
     });
   });
-  if (!toInsert.length) return alert('No shifts entered');
-  // Simple approach: delete existing for this week then insert
-  const week = getWeekRange(0);
   const startDate = week.start.toISOString().slice(0,10);
   const endDate = week.end.toISOString().slice(0,10);
   await db.from('schedules').delete().eq('owner_id', currentUser.id).gte('date', startDate).lte('date', endDate);
-  const { error } = await db.from('schedules').insert(toInsert);
-  if (error) return alert(error.message);
+  if (toInsert.length) {
+    const { error } = await db.from('schedules').insert(toInsert);
+    if (error) return alert(error.message);
+  }
   alert('Timetable saved');
   loadSchedule();
 }
