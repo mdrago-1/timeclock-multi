@@ -339,6 +339,10 @@ function getWeekRange(offsetWeeks = 0) {
   return { start: monday, end: sunday };
 }
 
+function formatDate(d) {
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function getDateRange() {
   if (selectedRange === 'this-week') return getWeekRange(0);
   if (selectedRange === 'last-week') return getWeekRange(-1);
@@ -353,6 +357,17 @@ function getDateRange() {
   return null;
 }
 
+function updateRangeDisplay() {
+  const display = document.getElementById('range-display');
+  if (!display) return;
+  const range = getDateRange();
+  if (range) {
+    display.textContent = `${formatDate(range.start)} – ${formatDate(range.end)}`;
+  } else {
+    display.textContent = '';
+  }
+}
+
 async function loadTimesheets() {
   const tab = document.getElementById('timesheets-tab');
   tab.innerHTML = `
@@ -361,6 +376,7 @@ async function loadTimesheets() {
       <button onclick="setRange('this-week')">This Week</button>
       <button onclick="setRange('last-week')">Last Week</button>
       <button onclick="setRange('custom')">Custom</button>
+      <div id="range-display" style="margin:0.75rem 0; font-weight:600; color:#2563eb;"></div>
       <div id="custom-range" style="display:none; margin:0.5rem 0;">
         From: <input type="date" id="date-from"> To: <input type="date" id="date-to">
       </div>
@@ -368,12 +384,14 @@ async function loadTimesheets() {
     </div>
     <p>Select a range above and click Download CSV to export hours.</p>
   `;
+  updateRangeDisplay();
 }
 
 window.setRange = (r) => {
   selectedRange = r;
   const custom = document.getElementById('custom-range');
   if (custom) custom.style.display = r === 'custom' ? 'block' : 'none';
+  updateRangeDisplay();
 };
 
 async function exportHours() {
