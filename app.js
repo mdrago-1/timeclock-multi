@@ -646,7 +646,7 @@ async function loadSchedule() {
 }
 
 async function sendEmail(to, subject, html) {
-  const url = 'https://bpljlflxkntyhyoekpkd.supabase.co/functions/v1/send-schedule';
+  const url = 'https://bpljlflxkntyhyoekpkd.supabase.co/functions/v1/Send-Schedule';
   const res = await fetch(url, {
     method: 'POST',
     headers: {
