@@ -201,12 +201,13 @@ async function loadStaff() {
   const tab = document.getElementById('staff-tab');
   tab.innerHTML = `
     <h3>Employees</h3>
-    <form id="add-staff">
-      <input type="text" id="staff-name" placeholder="Full Name" required>
+    <form id="add-staff" style="display:flex; flex-direction:column; gap:0.5rem; max-width:400px;">
+      <input type="text" id="staff-first" placeholder="First Name" required>
+      <input type="text" id="staff-last" placeholder="Last Name" required>
       <input type="text" id="staff-pin" placeholder="4-digit PIN" maxlength="4" required>
       <button type="submit">Add Employee</button>
     </form>
-    <div id="staff-list"></div>
+    <div id="staff-list" style="margin-top:1rem;"></div>
   `;
   document.getElementById('add-staff').onsubmit = addStaff;
   const list = document.getElementById('staff-list');
@@ -221,8 +222,10 @@ async function loadStaff() {
 
 async function addStaff(e) {
   e.preventDefault();
-  const name = document.getElementById('staff-name').value;
+  const first = document.getElementById('staff-first').value.trim();
+  const last = document.getElementById('staff-last').value.trim();
   const pin = document.getElementById('staff-pin').value;
+  const name = `${first} ${last}`;
   const { error } = await db.from('staff').insert({ owner_id: currentUser.id, name, pin });
   if (error) return alert(error.message);
   loadStaff();
@@ -239,21 +242,24 @@ window.openEmployeeProfile = openEmployeeProfile;
 async function openEmployeeProfile(staffId) {
   const { data: staff } = await db.from('staff').select('*').eq('id', staffId).single();
   const { data: docs } = await db.from('documents').select('*').eq('staff_id', staffId).order('uploaded_at', { ascending: false });
+  const [first = '', ...rest] = (staff.name || '').split(' ');
+  const last = rest.join(' ');
   const tab = document.getElementById('staff-tab');
   tab.innerHTML = `
-    <button onclick="loadStaff()">← Back to list</button>
-    <h3>${staff.name}</h3>
-    <form id="edit-profile">
-      <label>Name <input type="text" id="edit-name" value="${staff.name || ''}"></label><br>
-      <label>Date of Birth <input type="date" id="edit-dob" value="${staff.dob || ''}"></label><br>
-      <label>Address <textarea id="edit-address">${staff.address || ''}</textarea></label><br>
-      <label>Email <input type="email" id="edit-email" value="${staff.email || ''}"></label><br>
-      <label>Photo <input type="file" id="photo-upload" accept="image/*"></label><br>
+    <button onclick="loadStaff()" style="margin-bottom:1rem;">← Back to list</button>
+    <h2 style="text-align:left; margin:0 0 1.5rem;">${staff.name}</h2>
+    <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
+      <label>First Name<br><input type="text" id="edit-first" value="${first}" style="width:100%;"></label>
+      <label>Last Name<br><input type="text" id="edit-last" value="${last}" style="width:100%;"></label>
+      <label>Date of Birth<br><input type="date" id="edit-dob" value="${staff.dob || ''}" style="width:100%;"></label>
+      <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
+      <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
+      <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
-    <h4>Documents</h4>
-    <div id="docs-list">${docs?.map(d => `<div><a href="${d.file_url}" target="_blank">${d.file_name || d.type}</a> (${d.type})</div>`).join('') || '<p>No documents</p>'}</div>
-    <form id="upload-doc">
+    <h4 style="margin-top:2rem;">Documents</h4>
+    <div id="docs-list">${docs?.map(d => `<div style="margin:0.5rem 0;"><a href="${d.file_url}" target="_blank">${d.file_name || d.type}</a> (${d.type})</div>`).join('') || '<p>No documents</p>'}</div>
+    <form id="upload-doc" style="margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem; max-width:480px;">
       <select id="doc-type"><option value="right_to_work">Right to Work</option><option value="contract">Contract</option><option value="other">Other</option></select>
       <input type="file" id="doc-file" required>
       <button type="submit">Upload Document</button>
@@ -265,8 +271,10 @@ async function openEmployeeProfile(staffId) {
 
 async function saveProfile(e, staffId) {
   e.preventDefault();
+  const first = document.getElementById('edit-first').value.trim();
+  const last = document.getElementById('edit-last').value.trim();
   const updates = {
-    name: document.getElementById('edit-name').value,
+    name: `${first} ${last}`,
     dob: document.getElementById('edit-dob').value || null,
     address: document.getElementById('edit-address').value,
     email: document.getElementById('edit-email').value
@@ -349,7 +357,7 @@ function getDateRange() {
   if (selectedRange === 'custom') {
     const from = document.getElementById('date-from')?.value;
     const to = document.getElementById('date-to')?.value;
-    if (!from || !to) { alert('Select both dates'); return null; }
+    if (!from || !to) return null;
     const start = new Date(from); start.setHours(0,0,0,0);
     const end = new Date(to); end.setHours(23,59,59,999);
     return { start, end };
@@ -364,7 +372,7 @@ function updateRangeDisplay() {
   if (range) {
     display.textContent = `${formatDate(range.start)} – ${formatDate(range.end)}`;
   } else {
-    display.textContent = '';
+    display.textContent = selectedRange === 'custom' ? 'Select start and end dates' : '';
   }
 }
 
@@ -378,7 +386,8 @@ async function loadTimesheets() {
       <button onclick="setRange('custom')">Custom</button>
       <div id="range-display" style="margin:0.75rem 0; font-weight:600; color:#2563eb;"></div>
       <div id="custom-range" style="display:none; margin:0.5rem 0;">
-        From: <input type="date" id="date-from"> To: <input type="date" id="date-to">
+        <label>Start date<br><input type="date" id="date-from" onchange="updateRangeDisplay()"></label>
+        <label style="margin-left:1rem;">End date<br><input type="date" id="date-to" onchange="updateRangeDisplay()"></label>
       </div>
       <button onclick="exportHours()" style="margin-top:0.5rem;">Download CSV</button>
     </div>
@@ -396,7 +405,7 @@ window.setRange = (r) => {
 
 async function exportHours() {
   const range = getDateRange();
-  if (!range) return;
+  if (!range) return alert('Please select a valid date range');
   const { data: clocks } = await db.from('clocks')
     .select('*, staff(name)')
     .eq('owner_id', currentUser.id)
@@ -419,24 +428,38 @@ async function exportHours() {
 window.exportHours = exportHours;
 
 async function loadSchedule() {
+  const week = getWeekRange(0);
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const dayDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(week.start);
+    d.setDate(week.start.getDate() + i);
+    dayDates.push(d.toISOString().slice(0,10));
+  }
+  const { data: staff } = await db.from('staff').select('name').eq('owner_id', currentUser.id).order('name');
+  const { data: schedules } = await db.from('schedules').select('*').eq('owner_id', currentUser.id);
   const tab = document.getElementById('schedule-tab');
-  tab.innerHTML = `
-    <h3>Upload Schedule</h3>
+  let table = `<h3>Schedule — Week commencing ${formatDate(week.start)}</h3>
     <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time</p>
     <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
     <button onclick="uploadSchedule()">Upload Schedule</button>
-    <div id="schedule-list" style="margin-top:1.5rem;"></div>
-  `;
-  loadScheduleList();
-}
-
-async function loadScheduleList() {
-  const { data: schedules } = await db.from('schedules').select('*').eq('owner_id', currentUser.id).order('date');
-  const list = document.getElementById('schedule-list');
-  if (!list) return;
-  list.innerHTML = schedules?.length
-    ? `<h4>Current Schedule</h4>` + schedules.map(s => `<div class="staff-item">${s.name} — ${s.date} ${s.start_time || ''} - ${s.end_time || ''}</div>`).join('')
-    : '<p>No shifts uploaded yet.</p>';
+    <div style="overflow-x:auto; margin-top:1.5rem;">
+      <table style="border-collapse:collapse; width:100%; background:white;">
+        <thead><tr>
+          <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:left;">Team Member</th>
+          ${days.map(d => `<th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${d}</th>`).join('')}
+        </tr></thead>
+        <tbody>`;
+  (staff || []).forEach(s => {
+    table += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
+    dayDates.forEach(date => {
+      const shift = (schedules || []).find(sc => sc.name === s.name && sc.date === date);
+      table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-size:0.85rem;">${shift ? `${shift.start_time || ''} – ${shift.end_time || ''}` : ''}</td>`;
+    });
+    table += '</tr>';
+  });
+  table += '</tbody></table></div>';
+  tab.innerHTML = table;
 }
 
 async function uploadSchedule() {
@@ -453,6 +476,6 @@ async function uploadSchedule() {
   const { error } = await db.from('schedules').insert(rows);
   if (error) return alert(error.message);
   alert('Schedule uploaded');
-  loadScheduleList();
+  loadSchedule();
 }
 window.uploadSchedule = uploadSchedule;
