@@ -1,5 +1,5 @@
 // Supabase Edge Function to send schedule emails via Resend
-// Deploy with: supabase functions deploy send-schedule
+// Deploy with: supabase functions deploy send-schedule --no-verify-jwt
 // Set secret: supabase secrets set RESEND_API_KEY=re_...
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
@@ -11,10 +11,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { to, subject, html, text } = await req.json();
+    const { to, subject, html } = await req.json();
 
-    if (!to || !subject || (!html && !text)) {
-      return new Response(JSON.stringify({ error: 'Missing to, subject, or body' }), {
+    if (!to || !subject || !html) {
+      return new Response(JSON.stringify({ error: 'Missing to, subject, or html' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -37,8 +37,7 @@ Deno.serve(async (req) => {
         from: FROM_EMAIL,
         to: Array.isArray(to) ? to : [to],
         subject,
-        html: html || undefined,
-        text: text || undefined,
+        html,
       }),
     });
 
