@@ -60,6 +60,7 @@ function setupEventListeners() {
       document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
       if (tab.dataset.tab === 'timesheets') loadTimesheets();
       if (tab.dataset.tab === 'staff') loadStaff();
+      if (tab.dataset.tab === 'schedule') loadSchedule();
     });
   });
 }
@@ -356,22 +357,23 @@ async function loadTimesheets() {
   const tab = document.getElementById('timesheets-tab');
   tab.innerHTML = `
     <h3>Hours Export</h3>
-    <div>
+    <div style="margin-bottom:1rem;">
       <button onclick="setRange('this-week')">This Week</button>
       <button onclick="setRange('last-week')">Last Week</button>
       <button onclick="setRange('custom')">Custom</button>
       <div id="custom-range" style="display:none; margin:0.5rem 0;">
         From: <input type="date" id="date-from"> To: <input type="date" id="date-to">
       </div>
-      <button onclick="exportHours()">Download CSV</button>
+      <button onclick="exportHours()" style="margin-top:0.5rem;">Download CSV</button>
     </div>
-    <div id="summary"></div>
+    <p>Select a range above and click Download CSV to export hours.</p>
   `;
 }
 
 window.setRange = (r) => {
   selectedRange = r;
-  document.getElementById('custom-range').style.display = r === 'custom' ? 'block' : 'none';
+  const custom = document.getElementById('custom-range');
+  if (custom) custom.style.display = r === 'custom' ? 'block' : 'none';
 };
 
 async function exportHours() {
@@ -397,3 +399,42 @@ async function exportHours() {
   a.click();
 }
 window.exportHours = exportHours;
+
+async function loadSchedule() {
+  const tab = document.getElementById('schedule-tab');
+  tab.innerHTML = `
+    <h3>Upload Schedule</h3>
+    <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time</p>
+    <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
+    <button onclick="uploadSchedule()">Upload Schedule</button>
+    <div id="schedule-list" style="margin-top:1.5rem;"></div>
+  `;
+  loadScheduleList();
+}
+
+async function loadScheduleList() {
+  const { data: schedules } = await db.from('schedules').select('*').eq('owner_id', currentUser.id).order('date');
+  const list = document.getElementById('schedule-list');
+  if (!list) return;
+  list.innerHTML = schedules?.length
+    ? `<h4>Current Schedule</h4>` + schedules.map(s => `<div class="staff-item">${s.name} — ${s.date} ${s.start_time || ''} - ${s.end_time || ''}</div>`).join('')
+    : '<p>No shifts uploaded yet.</p>';
+}
+
+async function uploadSchedule() {
+  const fileInput = document.getElementById('schedule-file');
+  const file = fileInput.files[0];
+  if (!file) return alert('Choose a CSV file');
+  const text = await file.text();
+  const lines = text.trim().split('\n').slice(1);
+  const rows = lines.map(line => {
+    const [name, date, start_time, end_time] = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+    return { owner_id: currentUser.id, name, date, start_time, end_time };
+  }).filter(r => r.name && r.date);
+  if (!rows.length) return alert('No valid rows found');
+  const { error } = await db.from('schedules').insert(rows);
+  if (error) return alert(error.message);
+  alert('Schedule uploaded');
+  loadScheduleList();
+}
+window.uploadSchedule = uploadSchedule;
