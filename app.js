@@ -645,6 +645,44 @@ async function loadSchedule() {
   tab.innerHTML = table;
 }
 
+function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
+  const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  let html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:480px; margin:0 auto; color:#1e293b;">
+    <h1 style="font-size:1.4rem; margin-bottom:0.25rem;">Your Shifts</h1>
+    <p style="color:#64748b; margin-top:0;">${formatDate(weekStart)} – ${formatDate(weekEnd)}</p>
+    <table style="width:100%; border-collapse:collapse; margin-top:1rem;">`;
+  let totalHours = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    const dateStr = d.toISOString().slice(0,10);
+    const shift = (shifts || []).find(s => s.date === dateStr);
+    const dayName = days[i];
+    const dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const hrs = hoursBetween(shift?.start_time, shift?.end_time);
+    totalHours += hrs;
+    html += `<tr>
+      <td style="padding:0.75rem 0; border-bottom:1px solid #e2e8f0;">
+        <div style="font-size:1.15rem; font-weight:600;">${dayName}</div>
+        <div style="font-size:0.9rem; color:#64748b;">${dateLabel}</div>
+      </td>
+      <td style="padding:0.75rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">
+        ${shift?.start_time || shift?.end_time 
+          ? `<div style="font-size:1.05rem;">${shift.start_time || ''} – ${shift.end_time || ''}</div>
+             <div style="font-size:0.85rem; color:#64748b;">${hrs.toFixed(1)} hrs</div>`
+          : '<div style="color:#94a3b8;">Off</div>'}
+      </td>
+    </tr>`;
+  }
+  html += `<tr>
+    <td style="padding:1rem 0; font-weight:600;">Total</td>
+    <td style="padding:1rem 0; text-align:right; font-weight:600;">${totalHours.toFixed(1)} hrs</td>
+  </tr></table>
+  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from TimeClock</p>
+  </div>`;
+  return html;
+}
+
 async function sendEmail(to, subject, html) {
   const url = 'https://bpljlflxkntyhyoekpkd.supabase.co/functions/v1/Send-Schedule';
   const res = await fetch(url, {
@@ -674,13 +712,7 @@ async function sendShiftsToMember(name, email) {
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date');
-  let shiftsHtml = '<ul>';
-  (schedules || []).forEach(s => {
-    shiftsHtml += `<li>${s.date}: ${s.start_time || ''} – ${s.end_time || ''}</li>`;
-  });
-  shiftsHtml += '</ul>';
-  if (!schedules?.length) shiftsHtml = '<p>No shifts scheduled this week.</p>';
-  const html = `<h2>Your shifts for ${formatDate(week.start)} – ${formatDate(week.end)}</h2>${shiftsHtml}<p>From TimeClock</p>`;
+  const html = buildShiftEmailHtml(schedules, week.start, week.end);
   try {
     await sendEmail(email, `Your shifts – ${formatDate(week.start)}`, html);
     alert('Shifts sent to ' + name);
@@ -705,13 +737,7 @@ async function sendToAllTeam() {
   for (const s of staff || []) {
     if (!s.email) continue;
     const myShifts = (schedules || []).filter(sc => sc.name === s.name);
-    let shiftsHtml = '<ul>';
-    myShifts.forEach(sc => {
-      shiftsHtml += `<li>${sc.date}: ${sc.start_time || ''} – ${sc.end_time || ''}</li>`;
-    });
-    shiftsHtml += '</ul>';
-    if (!myShifts.length) shiftsHtml = '<p>No shifts scheduled this week.</p>';
-    const html = `<h2>Your shifts for ${formatDate(week.start)} – ${formatDate(week.end)}</h2>${shiftsHtml}<p>From TimeClock</p>`;
+    const html = buildShiftEmailHtml(myShifts, week.start, week.end);
     try {
       await sendEmail(s.email, `Your shifts – ${formatDate(week.start)}`, html);
       sent++;
