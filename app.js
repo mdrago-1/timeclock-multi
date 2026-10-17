@@ -427,6 +427,16 @@ async function exportHours() {
 }
 window.exportHours = exportHours;
 
+function downloadScheduleTemplate() {
+  const csv = 'name,date,start_time,end_time\nSarah Williams,2026-10-20,09:00,17:00\n';
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'schedule-template.csv';
+  a.click();
+}
+window.downloadScheduleTemplate = downloadScheduleTemplate;
+
 async function loadSchedule() {
   const week = getWeekRange(0);
   const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -440,9 +450,11 @@ async function loadSchedule() {
   const { data: schedules } = await db.from('schedules').select('*').eq('owner_id', currentUser.id);
   const tab = document.getElementById('schedule-tab');
   let table = `<h3>Schedule — Week commencing ${formatDate(week.start)}</h3>
-    <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time</p>
+    <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
+    <button onclick="downloadScheduleTemplate()" style="margin-left:0.5rem;">Download template</button></p>
     <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
     <button onclick="uploadSchedule()">Upload Schedule</button>
+    <button onclick="saveScheduleTable()" style="margin-left:0.5rem; background:#16a34a;">Save Timetable</button>
     <div style="overflow-x:auto; margin-top:1.5rem;">
       <table style="border-collapse:collapse; width:100%; background:white;">
         <thead><tr>
@@ -451,16 +463,48 @@ async function loadSchedule() {
         </tr></thead>
         <tbody>`;
   (staff || []).forEach(s => {
-    table += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
+    table += `<tr data-name="${s.name}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
       const shift = (schedules || []).find(sc => sc.name === s.name && sc.date === date);
-      table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-size:0.85rem;">${shift ? `${shift.start_time || ''} – ${shift.end_time || ''}` : ''}</td>`;
+      const start = shift?.start_time || '';
+      const end = shift?.end_time || '';
+      table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;">
+        <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:70px; font-size:0.8rem;">
+        <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:70px; font-size:0.8rem; margin-top:2px;">
+      </td>`;
     });
     table += '</tr>';
   });
   table += '</tbody></table></div>';
   tab.innerHTML = table;
 }
+
+async function saveScheduleTable() {
+  const rows = document.querySelectorAll('#schedule-tab tbody tr');
+  const toInsert = [];
+  rows.forEach(row => {
+    const name = row.dataset.name;
+    row.querySelectorAll('.shift-start').forEach((input, i) => {
+      const date = input.dataset.date;
+      const start = input.value;
+      const end = row.querySelectorAll('.shift-end')[i].value;
+      if (start || end) {
+        toInsert.push({ owner_id: currentUser.id, name, date, start_time: start, end_time: end });
+      }
+    });
+  });
+  if (!toInsert.length) return alert('No shifts entered');
+  // Simple approach: delete existing for this week then insert
+  const week = getWeekRange(0);
+  const startDate = week.start.toISOString().slice(0,10);
+  const endDate = week.end.toISOString().slice(0,10);
+  await db.from('schedules').delete().eq('owner_id', currentUser.id).gte('date', startDate).lte('date', endDate);
+  const { error } = await db.from('schedules').insert(toInsert);
+  if (error) return alert(error.message);
+  alert('Timetable saved');
+  loadSchedule();
+}
+window.saveScheduleTable = saveScheduleTable;
 
 async function uploadSchedule() {
   const fileInput = document.getElementById('schedule-file');
