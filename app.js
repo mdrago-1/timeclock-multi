@@ -224,7 +224,7 @@ async function showActions() {
 }
 
 async function recordAction(type) {
-  const { error } } = await db.from('clocks').insert({
+  const { error } = await db.from('clocks').insert({
     owner_id: currentUser.id,
     staff_id: currentStaff.id,
     type,
