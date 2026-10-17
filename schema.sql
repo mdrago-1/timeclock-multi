@@ -20,6 +20,7 @@ create table if not exists staff (
   dob date,
   address text,
   photo_url text,
+  hourly_rate numeric(10,2) default 0,
   created_at timestamptz default now(),
   unique (owner_id, pin)
 );
@@ -29,6 +30,7 @@ alter table staff add column if not exists email text;
 alter table staff add column if not exists dob date;
 alter table staff add column if not exists address text;
 alter table staff add column if not exists photo_url text;
+alter table staff add column if not exists hourly_rate numeric(10,2) default 0;
 
 -- Clocks
 create table if not exists clocks (
