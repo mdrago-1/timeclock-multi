@@ -69,6 +69,7 @@ function setupEventListeners() {
       if (tab.dataset.tab === 'timesheets') loadTimesheets();
       if (tab.dataset.tab === 'staff') loadStaff();
       if (tab.dataset.tab === 'schedule') loadSchedule();
+      if (tab.dataset.tab === 'settings') loadSettings();
     });
   });
 }
@@ -82,6 +83,7 @@ function showKiosk() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('kiosk-screen').classList.add('active');
   showPin();
+  updateShopLogo();
 }
 
 function showAdminPassword() {
@@ -104,6 +106,7 @@ function showAdmin() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('admin-screen').classList.add('active');
   loadStaff();
+  updateShopLogo();
 }
 
 function showMemberLogin() {
@@ -128,11 +131,51 @@ function showMemberPortal(staff) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('member-screen').classList.add('active');
   const content = document.getElementById('member-content');
+  const [first = '', ...rest] = (staff.name || '').split(' ');
+  const last = rest.join(' ');
   content.innerHTML = `
     <h2>${staff.name}</h2>
-    <p>Member portal — hours and documents coming soon.</p>
-    <button onclick="showKiosk()">Back to Kiosk</button>
+    <h3 style="margin-top:1.5rem;">New Starter Form</h3>
+    <form id="starter-form" style="display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
+      <label>First Name<br><input type="text" id="sf-first" value="${first}" required style="width:100%;"></label>
+      <label>Last Name<br><input type="text" id="sf-last" value="${last}" required style="width:100%;"></label>
+      <label>Date of Birth<br><input type="date" id="sf-dob" value="${staff.dob || ''}" style="width:100%;"></label>
+      <label>Address<br><textarea id="sf-address" style="width:100%; min-height:70px;">${staff.address || ''}</textarea></label>
+      <label>Phone<br><input type="tel" id="sf-phone" value="${staff.phone || ''}" style="width:100%;"></label>
+      <label>National Insurance Number<br><input type="text" id="sf-ni" value="${staff.ni_number || ''}" style="width:100%;"></label>
+      <label>Emergency Contact Name<br><input type="text" id="sf-em-name" value="${staff.emergency_contact || ''}" style="width:100%;"></label>
+      <label>Emergency Contact Phone<br><input type="tel" id="sf-em-phone" value="${staff.emergency_phone || ''}" style="width:100%;"></label>
+      <label>Bank Account Name<br><input type="text" id="sf-bank-name" value="${staff.bank_account_name || ''}" style="width:100%;"></label>
+      <label>Sort Code<br><input type="text" id="sf-sort" value="${staff.bank_sort_code || ''}" placeholder="00-00-00" style="width:100%;"></label>
+      <label>Account Number<br><input type="text" id="sf-acc" value="${staff.bank_account_number || ''}" style="width:100%;"></label>
+      <button type="submit">Submit Form</button>
+    </form>
+    <p style="margin-top:1rem; color:#64748b; font-size:0.9rem;">Written statement of terms and contract will be added later.</p>
+    <button onclick="showKiosk()" style="margin-top:1.5rem;">Back to Kiosk</button>
   `;
+  document.getElementById('starter-form').onsubmit = (e) => submitStarterForm(e, staff.id);
+}
+
+async function submitStarterForm(e, staffId) {
+  e.preventDefault();
+  const first = document.getElementById('sf-first').value.trim();
+  const last = document.getElementById('sf-last').value.trim();
+  const updates = {
+    name: `${first} ${last}`,
+    dob: document.getElementById('sf-dob').value || null,
+    address: document.getElementById('sf-address').value,
+    phone: document.getElementById('sf-phone').value,
+    ni_number: document.getElementById('sf-ni').value,
+    emergency_contact: document.getElementById('sf-em-name').value,
+    emergency_phone: document.getElementById('sf-em-phone').value,
+    bank_account_name: document.getElementById('sf-bank-name').value,
+    bank_sort_code: document.getElementById('sf-sort').value,
+    bank_account_number: document.getElementById('sf-acc').value,
+    starter_form_completed: true
+  };
+  const { error } = await db.from('staff').update(updates).eq('id', staffId);
+  if (error) return alert(error.message);
+  alert('Form submitted. Thank you!');
 }
 
 function showPin() {
@@ -242,6 +285,50 @@ function showStatus(msg, type = '') {
   setTimeout(() => el.textContent = '', 4000);
 }
 
+async function updateShopLogo() {
+  if (!currentUser) return;
+  const { data: profile } = await db.from('profiles').select('logo_url').eq('id', currentUser.id).single();
+  const logoUrl = profile?.logo_url;
+  document.querySelectorAll('.shop-logo-placeholder').forEach(el => {
+    if (logoUrl) {
+      el.innerHTML = `<img src="${logoUrl}" alt="Shop logo" style="max-height:36px; max-width:100px; object-fit:contain;">`;
+      el.style.background = 'transparent';
+    } else {
+      el.textContent = 'Shop';
+    }
+  });
+}
+
+async function loadSettings() {
+  const tab = document.getElementById('settings-tab');
+  const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+  tab.innerHTML = `
+    <h3>Business Logo</h3>
+    <p>Upload your logo to appear next to the TimeClock logo.</p>
+    ${profile?.logo_url ? `<img src="${profile.logo_url}" style="max-height:60px; margin:1rem 0;">` : '<p>No logo uploaded yet.</p>'}
+    <form id="logo-form" style="margin-top:1rem;">
+      <input type="file" id="logo-file" accept="image/*" required>
+      <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
+    </form>
+  `;
+  document.getElementById('logo-form').onsubmit = uploadLogo;
+}
+
+async function uploadLogo(e) {
+  e.preventDefault();
+  const file = document.getElementById('logo-file').files[0];
+  if (!file) return;
+  const path = `${currentUser.id}/logo-${Date.now()}-${file.name}`;
+  const { error: upErr } = await db.storage.from('photos').upload(path, file);
+  if (upErr) return alert(upErr.message);
+  const { data } = db.storage.from('photos').getPublicUrl(path);
+  const { error } = await db.from('profiles').update({ logo_url: data.publicUrl }).eq('id', currentUser.id);
+  if (error) return alert(error.message);
+  alert('Logo uploaded');
+  loadSettings();
+  updateShopLogo();
+}
+
 async function loadStaff() {
   const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).order('name');
   const tab = document.getElementById('staff-tab');
@@ -261,6 +348,7 @@ async function loadStaff() {
     <div class="staff-item" onclick="openEmployeeProfile('${s.id}')" style="cursor:pointer;">
       ${s.photo_url ? `<img src="${s.photo_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;margin-right:0.5rem;">` : '<div style="width:40px;height:40px;border-radius:50%;background:#e2e8f0;margin-right:0.5rem;"></div>'}
       <span>${s.name}</span>
+      ${s.starter_form_completed ? '<span style="color:#16a34a; font-size:0.8rem; margin-left:0.5rem;">Form done</span>' : ''}
       <button onclick="event.stopPropagation(); deleteStaff('${s.id}')">Delete</button>
     </div>
   `).join('') || '<p>No employees yet</p>';
@@ -294,6 +382,7 @@ async function openEmployeeProfile(staffId) {
   tab.innerHTML = `
     <button onclick="loadStaff()" style="margin-bottom:1rem;">← Back to list</button>
     <h2 style="text-align:left; margin:0 0 1.5rem;">${staff.name}</h2>
+    ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
     <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
       <label>First Name<br><input type="text" id="edit-first" value="${first}" style="width:100%;"></label>
       <label>Last Name<br><input type="text" id="edit-last" value="${last}" style="width:100%;"></label>
@@ -301,6 +390,10 @@ async function openEmployeeProfile(staffId) {
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
       <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;"></label>
+      <label>NI Number<br><input type="text" value="${staff.ni_number || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
+      <label>Phone<br><input type="text" value="${staff.phone || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
+      <label>Emergency Contact<br><input type="text" value="${staff.emergency_contact || ''} ${staff.emergency_phone || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
+      <label>Bank Details<br><input type="text" value="${staff.bank_account_name || ''} / ${staff.bank_sort_code || ''} / ${staff.bank_account_number || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
