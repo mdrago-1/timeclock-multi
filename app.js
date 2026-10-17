@@ -224,7 +224,7 @@ async function showActions() {
 }
 
 async function recordAction(type) {
-  const { error } = await db.from('clocks').insert({
+  const { error } } = await db.from('clocks').insert({
     owner_id: currentUser.id,
     staff_id: currentStaff.id,
     type,
@@ -646,10 +646,19 @@ async function loadSchedule() {
 }
 
 async function sendEmail(to, subject, html) {
-  const { data, error } = await db.functions.invoke('send-schedule', {
-    body: { to, subject, html }
+  const url = 'https://bpljlflxkntyhyoekpkd.supabase.co/functions/v1/send-schedule';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ to, subject, html }),
   });
-  if (error) throw error;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error?.message || data.error || res.statusText || 'Failed to send');
+  }
   return data;
 }
 
