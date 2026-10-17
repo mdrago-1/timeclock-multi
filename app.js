@@ -304,6 +304,7 @@ async function openEmployeeProfile(staffId) {
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
+    <button type="button" onclick="sendPasswordInvite('${staff.email || ''}')" style="margin-top:1rem;">Send Invite / Reset Password</button>
     <h4 style="margin-top:2rem;">Documents</h4>
     <div id="docs-list">${docs?.map(d => `<div style="margin:0.5rem 0;"><a href="${d.file_url}" target="_blank">${d.file_name || d.type}</a> (${d.type})</div>`).join('') || '<p>No documents</p>'}</div>
     <form id="upload-doc" style="margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem; max-width:480px;">
@@ -315,6 +316,16 @@ async function openEmployeeProfile(staffId) {
   document.getElementById('edit-profile').onsubmit = (e) => saveProfile(e, staffId);
   document.getElementById('upload-doc').onsubmit = (e) => uploadDocument(e, staffId);
 }
+
+async function sendPasswordInvite(email) {
+  if (!email) return alert('Add an email address first');
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+  if (error) return alert(error.message);
+  alert('Password setup / reset email sent to ' + email);
+}
+window.sendPasswordInvite = sendPasswordInvite;
 
 async function saveProfile(e, staffId) {
   e.preventDefault();
@@ -470,7 +481,6 @@ async function loadTimesheetSummary() {
     summary.innerHTML = '<p>No clock data in this range.</p>';
     return;
   }
-  // Group by staff and date
   const byStaff = {};
   (staff || []).forEach(s => byStaff[s.id] = { name: s.name, days: {} });
   clocks.forEach(c => {
@@ -569,7 +579,7 @@ async function loadSchedule() {
     d.setDate(week.start.getDate() + i);
     dayDates.push(d.toISOString().slice(0,10));
   }
-  const { data: staff } = await db.from('staff').select('name, hourly_rate').eq('owner_id', currentUser.id).order('name');
+  const { data: staff } = await db.from('staff').select('name, email, hourly_rate').eq('owner_id', currentUser.id).order('name');
   const startDate = week.start.toISOString().slice(0,10);
   const endDate = week.end.toISOString().slice(0,10);
   const { data: schedules } = await db.from('schedules')
@@ -584,13 +594,14 @@ async function loadSchedule() {
       <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
       <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
-    <div style="overflow-x:auto; margin-bottom:2rem;">
+    <div style="overflow-x:auto; margin-bottom:1rem;">
       <table style="border-collapse:collapse; width:100%; background:white;">
         <thead><tr>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:left;">Team Member</th>
           ${days.map(d => `<th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${d}</th>`).join('')}
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Total Hours</th>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Gross Wage</th>
+          <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Actions</th>
         </tr></thead>
         <tbody>`;
   let grandTotalWage = 0;
@@ -612,22 +623,38 @@ async function loadSchedule() {
     grandTotalWage += wage;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendShiftsToMember('${s.name}','${s.email || ''}')" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
     table += '</tr>';
   });
   table += `<tr style="background:#f1f5f9; font-weight:700;">
     <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${days.length + 1}">Weekly Total</td>
     <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
+    <td></td>
   </tr>`;
   table += '</tbody></table></div>';
+  table += `<div style="margin-bottom:1.5rem;">
+    <button onclick="saveScheduleTable()" style="background:#16a34a;">Save Timetable</button>
+    <button onclick="sendToAllTeam()" style="margin-left:0.5rem;">Send to all team</button>
+  </div>`;
   table += `<div style="border-top:1px solid #e2e8f0; padding-top:1.5rem;">
     <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
     <button onclick="downloadScheduleTemplate()" style="margin-left:0.5rem;">Download template</button></p>
     <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
     <button onclick="uploadSchedule()">Upload Schedule</button>
-    <button onclick="saveScheduleTable()" style="margin-left:0.5rem; background:#16a34a;">Save Timetable</button>
   </div>`;
   tab.innerHTML = table;
 }
+
+async function sendShiftsToMember(name, email) {
+  if (!email) return alert('No email on file for ' + name);
+  alert('Shift notification for ' + name + ' would be sent to ' + email + ' (email integration coming soon).');
+}
+window.sendShiftsToMember = sendShiftsToMember;
+
+async function sendToAllTeam() {
+  alert('Whole schedule would be emailed to all team members with an email address (email integration coming soon).');
+}
+window.sendToAllTeam = sendToAllTeam;
 
 async function saveScheduleTable() {
   const week = getWeekRange(currentWeekOffset);
