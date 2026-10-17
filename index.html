@@ -30,7 +30,10 @@
       <header class="kiosk-header">
         <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
         <div id="current-time"></div>
-        <button id="admin-btn">Admin</button>
+        <div>
+          <button id="member-btn">Member Portal</button>
+          <button id="admin-btn">Admin</button>
+        </div>
       </header>
       <div id="pin-section" class="pin-container">
         <h2>Enter Your PIN</h2>
@@ -49,6 +52,36 @@
         <button id="back-to-pin" class="back-link">Back</button>
       </div>
       <div id="status-message"></div>
+    </div>
+
+    <!-- Admin Password Prompt -->
+    <div id="admin-password-screen" class="screen">
+      <div class="logo"><div class="clock-icon"></div><h1>Admin Access</h1></div>
+      <form id="admin-password-form" style="max-width:320px; margin:0 auto; display:flex; flex-direction:column; gap:1rem;">
+        <input type="password" id="admin-password" placeholder="Admin Password" required>
+        <button type="submit">Enter Admin</button>
+        <button type="button" id="cancel-admin">Cancel</button>
+      </form>
+    </div>
+
+    <!-- Member Portal Login -->
+    <div id="member-login-screen" class="screen">
+      <div class="logo"><div class="clock-icon"></div><h1>Member Portal</h1></div>
+      <form id="member-login-form" style="max-width:320px; margin:0 auto; display:flex; flex-direction:column; gap:1rem;">
+        <input type="email" id="member-email" placeholder="Email" required>
+        <input type="password" id="member-password" placeholder="Password" required>
+        <button type="submit">Log In</button>
+        <button type="button" id="cancel-member">Cancel</button>
+      </form>
+    </div>
+
+    <!-- Member Portal Screen -->
+    <div id="member-screen" class="screen">
+      <header class="admin-header">
+        <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
+        <button id="exit-member">Exit</button>
+      </header>
+      <div id="member-content" style="padding:1.5rem;"></div>
     </div>
 
     <!-- Admin Screen -->
