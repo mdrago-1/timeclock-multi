@@ -29,6 +29,8 @@ create table if not exists staff (
   bank_sort_code text,
   bank_account_number text,
   starter_form_completed boolean default false,
+  starter_form_data jsonb,
+  starter_form_completed_at timestamptz,
   created_at timestamptz default now(),
   unique (owner_id, pin)
 );
@@ -47,6 +49,8 @@ alter table staff add column if not exists bank_account_name text;
 alter table staff add column if not exists bank_sort_code text;
 alter table staff add column if not exists bank_account_number text;
 alter table staff add column if not exists starter_form_completed boolean default false;
+alter table staff add column if not exists starter_form_data jsonb;
+alter table staff add column if not exists starter_form_completed_at timestamptz;
 
 -- Clocks
 create table if not exists clocks (
