@@ -21,6 +21,14 @@ create table if not exists staff (
   address text,
   photo_url text,
   hourly_rate numeric(10,2) default 0,
+  ni_number text,
+  phone text,
+  emergency_contact text,
+  emergency_phone text,
+  bank_account_name text,
+  bank_sort_code text,
+  bank_account_number text,
+  starter_form_completed boolean default false,
   created_at timestamptz default now(),
   unique (owner_id, pin)
 );
@@ -31,6 +39,14 @@ alter table staff add column if not exists dob date;
 alter table staff add column if not exists address text;
 alter table staff add column if not exists photo_url text;
 alter table staff add column if not exists hourly_rate numeric(10,2) default 0;
+alter table staff add column if not exists ni_number text;
+alter table staff add column if not exists phone text;
+alter table staff add column if not exists emergency_contact text;
+alter table staff add column if not exists emergency_phone text;
+alter table staff add column if not exists bank_account_name text;
+alter table staff add column if not exists bank_sort_code text;
+alter table staff add column if not exists bank_account_number text;
+alter table staff add column if not exists starter_form_completed boolean default false;
 
 -- Clocks
 create table if not exists clocks (
