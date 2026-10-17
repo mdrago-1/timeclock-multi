@@ -645,14 +645,72 @@ async function loadSchedule() {
   tab.innerHTML = table;
 }
 
+async function sendEmail(to, subject, html) {
+  const { data, error } = await db.functions.invoke('send-schedule', {
+    body: { to, subject, html }
+  });
+  if (error) throw error;
+  return data;
+}
+
 async function sendShiftsToMember(name, email) {
   if (!email) return alert('No email on file for ' + name);
-  alert('Shift notification for ' + name + ' would be sent to ' + email + ' (email integration coming soon).');
+  const week = getWeekRange(currentWeekOffset);
+  const startDate = week.start.toISOString().slice(0,10);
+  const endDate = week.end.toISOString().slice(0,10);
+  const { data: schedules } = await db.from('schedules')
+    .select('*')
+    .eq('owner_id', currentUser.id)
+    .eq('name', name)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+  let shiftsHtml = '<ul>';
+  (schedules || []).forEach(s => {
+    shiftsHtml += `<li>${s.date}: ${s.start_time || ''} – ${s.end_time || ''}</li>`;
+  });
+  shiftsHtml += '</ul>';
+  if (!schedules?.length) shiftsHtml = '<p>No shifts scheduled this week.</p>';
+  const html = `<h2>Your shifts for ${formatDate(week.start)} – ${formatDate(week.end)}</h2>${shiftsHtml}<p>From TimeClock</p>`;
+  try {
+    await sendEmail(email, `Your shifts – ${formatDate(week.start)}`, html);
+    alert('Shifts sent to ' + name);
+  } catch (err) {
+    alert('Failed to send: ' + (err.message || err));
+  }
 }
 window.sendShiftsToMember = sendShiftsToMember;
 
 async function sendToAllTeam() {
-  alert('Whole schedule would be emailed to all team members with an email address (email integration coming soon).');
+  const { data: staff } = await db.from('staff').select('name, email').eq('owner_id', currentUser.id);
+  const week = getWeekRange(currentWeekOffset);
+  const startDate = week.start.toISOString().slice(0,10);
+  const endDate = week.end.toISOString().slice(0,10);
+  const { data: schedules } = await db.from('schedules')
+    .select('*')
+    .eq('owner_id', currentUser.id)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+  let sent = 0;
+  for (const s of staff || []) {
+    if (!s.email) continue;
+    const myShifts = (schedules || []).filter(sc => sc.name === s.name);
+    let shiftsHtml = '<ul>';
+    myShifts.forEach(sc => {
+      shiftsHtml += `<li>${sc.date}: ${sc.start_time || ''} – ${sc.end_time || ''}</li>`;
+    });
+    shiftsHtml += '</ul>';
+    if (!myShifts.length) shiftsHtml = '<p>No shifts scheduled this week.</p>';
+    const html = `<h2>Your shifts for ${formatDate(week.start)} – ${formatDate(week.end)}</h2>${shiftsHtml}<p>From TimeClock</p>`;
+    try {
+      await sendEmail(s.email, `Your shifts – ${formatDate(week.start)}`, html);
+      sent++;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  alert(`Sent to ${sent} team members`);
 }
 window.sendToAllTeam = sendToAllTeam;
 
