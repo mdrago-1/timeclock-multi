@@ -133,24 +133,93 @@ function showMemberPortal(staff) {
   const content = document.getElementById('member-content');
   const [first = '', ...rest] = (staff.name || '').split(' ');
   const last = rest.join(' ');
+  const data = staff.starter_form_data || {};
   content.innerHTML = `
     <h2>${staff.name}</h2>
-    <h3 style="margin-top:1.5rem;">New Starter Form</h3>
-    <form id="starter-form" style="display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
-      <label>First Name<br><input type="text" id="sf-first" value="${first}" required style="width:100%;"></label>
-      <label>Last Name<br><input type="text" id="sf-last" value="${last}" required style="width:100%;"></label>
-      <label>Date of Birth<br><input type="date" id="sf-dob" value="${staff.dob || ''}" style="width:100%;"></label>
-      <label>Address<br><textarea id="sf-address" style="width:100%; min-height:70px;">${staff.address || ''}</textarea></label>
-      <label>Phone<br><input type="tel" id="sf-phone" value="${staff.phone || ''}" style="width:100%;"></label>
-      <label>National Insurance Number<br><input type="text" id="sf-ni" value="${staff.ni_number || ''}" style="width:100%;"></label>
-      <label>Emergency Contact Name<br><input type="text" id="sf-em-name" value="${staff.emergency_contact || ''}" style="width:100%;"></label>
-      <label>Emergency Contact Phone<br><input type="tel" id="sf-em-phone" value="${staff.emergency_phone || ''}" style="width:100%;"></label>
-      <label>Bank Account Name<br><input type="text" id="sf-bank-name" value="${staff.bank_account_name || ''}" style="width:100%;"></label>
-      <label>Sort Code<br><input type="text" id="sf-sort" value="${staff.bank_sort_code || ''}" placeholder="00-00-00" style="width:100%;"></label>
-      <label>Account Number<br><input type="text" id="sf-acc" value="${staff.bank_account_number || ''}" style="width:100%;"></label>
-      <button type="submit">Submit Form</button>
+    <h3 style="margin-top:1.5rem;">New Starter Details Form</h3>
+    <p style="color:#64748b; font-size:0.9rem;">All sections are required. Complete and submit before your first shift.</p>
+    <form id="starter-form" style="display:flex; flex-direction:column; gap:1.25rem; max-width:560px; text-align:left;">
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">Agreed details</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+          <label>Agreed start date (DD/MM/YYYY)<br><input type="date" id="sf-start-date" value="${data.agreed_start_date || ''}" required style="width:100%;"></label>
+          <label>Agreed pay rate (£ per hour)<br><input type="number" id="sf-pay-rate" step="0.01" min="0" value="${data.agreed_pay_rate || ''}" required style="width:100%;"></label>
+        </div>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">1. You</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+          <label>First name<br><input type="text" id="sf-first" value="${data.first_name || first}" required style="width:100%;"></label>
+          <label>Last name<br><input type="text" id="sf-last" value="${data.last_name || last}" required style="width:100%;"></label>
+          <label>Preferred name (if different)<br><input type="text" id="sf-preferred" value="${data.preferred_name || ''}" style="width:100%;"></label>
+          <label>Date of birth (DD/MM/YYYY)<br><input type="date" id="sf-dob" value="${data.dob || staff.dob || ''}" required style="width:100%;"></label>
+          <label>Mobile<br><input type="tel" id="sf-mobile" value="${data.mobile || staff.phone || ''}" required style="width:100%;"></label>
+          <label>Email<br><input type="email" id="sf-email" value="${data.email || staff.email || ''}" required style="width:100%;"></label>
+          <label style="grid-column:1 / -1;">Home address<br><textarea id="sf-address" required style="width:100%; min-height:60px;">${data.home_address || staff.address || ''}</textarea></label>
+          <label>Town / city<br><input type="text" id="sf-town" value="${data.town || ''}" required style="width:100%;"></label>
+          <label>Postcode<br><input type="text" id="sf-postcode" value="${data.postcode || ''}" required style="width:100%;"></label>
+        </div>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">2. Emergency contact</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+          <label>Name<br><input type="text" id="sf-em-name" value="${data.emergency_name || staff.emergency_contact || ''}" required style="width:100%;"></label>
+          <label>Relationship<br><input type="text" id="sf-em-rel" value="${data.emergency_relationship || ''}" required style="width:100%;"></label>
+          <label>Phone<br><input type="tel" id="sf-em-phone" value="${data.emergency_phone || staff.emergency_phone || ''}" required style="width:100%;"></label>
+        </div>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">3. Pay (so we can pay you)</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+          <label>Account holder name<br><input type="text" id="sf-bank-name" value="${data.bank_account_name || staff.bank_account_name || ''}" required style="width:100%;"></label>
+          <label>Sort code<br><input type="text" id="sf-sort" value="${data.bank_sort_code || staff.bank_sort_code || ''}" placeholder="00-00-00" required style="width:100%;"></label>
+          <label>Account number<br><input type="text" id="sf-acc" value="${data.bank_account_number || staff.bank_account_number || ''}" required style="width:100%;"></label>
+          <label>National Insurance number<br><input type="text" id="sf-ni" value="${data.ni_number || staff.ni_number || ''}" required style="width:100%;"></label>
+          <label>Student loan to repay?<br>
+            <select id="sf-student-loan" required style="width:100%;">
+              <option value="">Select</option>
+              <option value="yes" ${data.student_loan === 'yes' ? 'selected' : ''}>Yes</option>
+              <option value="no" ${data.student_loan === 'no' ? 'selected' : ''}>No</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">4. Right to work in the UK</h4>
+        <p style="margin:0.5rem 0; font-size:0.9rem;">Bring original documents or a share code on or before day one. Tick what you will use:</p>
+        <label><input type="checkbox" id="sf-rtw-passport" ${data.rtw_passport ? 'checked' : ''}> UK / Irish passport</label><br>
+        <label><input type="checkbox" id="sf-rtw-share" ${data.rtw_share_code ? 'checked' : ''}> Home Office share code</label><br>
+        <label><input type="checkbox" id="sf-rtw-other" ${data.rtw_other ? 'checked' : ''}> Other accepted document</label><br>
+        <label style="margin-top:0.5rem; display:block;">Share code (if you have one)<br><input type="text" id="sf-share-code" value="${data.share_code || ''}" style="width:100%;"></label>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">5. Work and availability</h4>
+        <label>Days you can usually work<br><input type="text" id="sf-days" value="${data.days_available || ''}" required style="width:100%;"></label>
+        <label style="margin-top:0.5rem; display:block;">Do you have another job? If yes, where and which days?<br><textarea id="sf-other-job" style="width:100%; min-height:50px;">${data.other_job || ''}</textarea></label>
+        <label style="margin-top:0.5rem; display:block;"><input type="checkbox" id="sf-hygiene-yes" ${data.hygiene_level2 ? 'checked' : ''}> I already hold Level 2 Food Hygiene</label>
+        <label><input type="checkbox" id="sf-hygiene-no" ${data.hygiene_will_complete ? 'checked' : ''}> I do not — I will complete it within 2 weeks</label>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">6. Health note for food handling (optional)</h4>
+        <textarea id="sf-health" style="width:100%; min-height:60px;">${data.health_note || ''}</textarea>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">7. Photos and video at work</h4>
+        <p style="margin:0.5rem 0; font-size:0.9rem;">The shop photographs and films the workplace for social media and promotion. Staff may appear.</p>
+        <label><input type="checkbox" id="sf-photos" required ${data.photos_consent ? 'checked' : ''}> I understand I may appear in workplace photos and video used to promote the shop</label>
+      </div>
+      <div>
+        <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">8. Confirm</h4>
+        <label><input type="checkbox" id="sf-true" required ${data.confirm_true ? 'checked' : ''}> The details on this form are true</label><br>
+        <label><input type="checkbox" id="sf-contract" required ${data.confirm_contract ? 'checked' : ''}> I understand I will be sent a contract to read and must confirm it before I start</label><br>
+        <label><input type="checkbox" id="sf-phones" required ${data.confirm_phones ? 'checked' : ''}> I understand there are no personal phones on the shop floor</label><br>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
+          <label>Full name (acts as your signature)<br><input type="text" id="sf-signature" value="${data.signature_name || ''}" required style="width:100%;"></label>
+          <label>Date<br><input type="date" id="sf-sig-date" value="${data.signature_date || ''}" required style="width:100%;"></label>
+        </div>
+      </div>
+      <button type="submit" style="margin-top:0.5rem;">Submit Form</button>
     </form>
-    <p style="margin-top:1rem; color:#64748b; font-size:0.9rem;">Written statement of terms and contract will be added later.</p>
     <button onclick="showKiosk()" style="margin-top:1.5rem;">Back to Kiosk</button>
   `;
   document.getElementById('starter-form').onsubmit = (e) => submitStarterForm(e, staff.id);
@@ -158,24 +227,68 @@ function showMemberPortal(staff) {
 
 async function submitStarterForm(e, staffId) {
   e.preventDefault();
-  const first = document.getElementById('sf-first').value.trim();
-  const last = document.getElementById('sf-last').value.trim();
+  const formData = {
+    agreed_start_date: document.getElementById('sf-start-date').value,
+    agreed_pay_rate: document.getElementById('sf-pay-rate').value,
+    first_name: document.getElementById('sf-first').value.trim(),
+    last_name: document.getElementById('sf-last').value.trim(),
+    preferred_name: document.getElementById('sf-preferred').value.trim(),
+    dob: document.getElementById('sf-dob').value,
+    mobile: document.getElementById('sf-mobile').value.trim(),
+    email: document.getElementById('sf-email').value.trim(),
+    home_address: document.getElementById('sf-address').value.trim(),
+    town: document.getElementById('sf-town').value.trim(),
+    postcode: document.getElementById('sf-postcode').value.trim(),
+    emergency_name: document.getElementById('sf-em-name').value.trim(),
+    emergency_relationship: document.getElementById('sf-em-rel').value.trim(),
+    emergency_phone: document.getElementById('sf-em-phone').value.trim(),
+    bank_account_name: document.getElementById('sf-bank-name').value.trim(),
+    bank_sort_code: document.getElementById('sf-sort').value.trim(),
+    bank_account_number: document.getElementById('sf-acc').value.trim(),
+    ni_number: document.getElementById('sf-ni').value.trim(),
+    student_loan: document.getElementById('sf-student-loan').value,
+    rtw_passport: document.getElementById('sf-rtw-passport').checked,
+    rtw_share_code: document.getElementById('sf-rtw-share').checked,
+    rtw_other: document.getElementById('sf-rtw-other').checked,
+    share_code: document.getElementById('sf-share-code').value.trim(),
+    days_available: document.getElementById('sf-days').value.trim(),
+    other_job: document.getElementById('sf-other-job').value.trim(),
+    hygiene_level2: document.getElementById('sf-hygiene-yes').checked,
+    hygiene_will_complete: document.getElementById('sf-hygiene-no').checked,
+    health_note: document.getElementById('sf-health').value.trim(),
+    photos_consent: document.getElementById('sf-photos').checked,
+    confirm_true: document.getElementById('sf-true').checked,
+    confirm_contract: document.getElementById('sf-contract').checked,
+    confirm_phones: document.getElementById('sf-phones').checked,
+    signature_name: document.getElementById('sf-signature').value.trim(),
+    signature_date: document.getElementById('sf-sig-date').value
+  };
+  if (!formData.rtw_passport && !formData.rtw_share_code && !formData.rtw_other) {
+    return alert('Please tick at least one right-to-work option');
+  }
+  if (!formData.hygiene_level2 && !formData.hygiene_will_complete) {
+    return alert('Please tick one food hygiene option');
+  }
   const updates = {
-    name: `${first} ${last}`,
-    dob: document.getElementById('sf-dob').value || null,
-    address: document.getElementById('sf-address').value,
-    phone: document.getElementById('sf-phone').value,
-    ni_number: document.getElementById('sf-ni').value,
-    emergency_contact: document.getElementById('sf-em-name').value,
-    emergency_phone: document.getElementById('sf-em-phone').value,
-    bank_account_name: document.getElementById('sf-bank-name').value,
-    bank_sort_code: document.getElementById('sf-sort').value,
-    bank_account_number: document.getElementById('sf-acc').value,
-    starter_form_completed: true
+    name: `${formData.first_name} ${formData.last_name}`,
+    dob: formData.dob || null,
+    address: formData.home_address,
+    phone: formData.mobile,
+    email: formData.email,
+    ni_number: formData.ni_number,
+    emergency_contact: formData.emergency_name,
+    emergency_phone: formData.emergency_phone,
+    bank_account_name: formData.bank_account_name,
+    bank_sort_code: formData.bank_sort_code,
+    bank_account_number: formData.bank_account_number,
+    hourly_rate: parseFloat(formData.agreed_pay_rate) || 0,
+    starter_form_completed: true,
+    starter_form_data: formData,
+    starter_form_completed_at: new Date().toISOString()
   };
   const { error } = await db.from('staff').update(updates).eq('id', staffId);
   if (error) return alert(error.message);
-  alert('Form submitted. Thank you!');
+  alert('Form submitted and recorded. Thank you!');
 }
 
 function showPin() {
@@ -373,6 +486,42 @@ async function deleteStaff(id) {
 window.deleteStaff = deleteStaff;
 window.openEmployeeProfile = openEmployeeProfile;
 
+function renderStarterFormMirror(data, completedAt) {
+  if (!data) return '<p>No starter form data.</p>';
+  const tick = (v) => v ? '✓' : '';
+  return `
+    <div style="border:1px solid #e2e8f0; padding:1rem; margin-top:1rem; background:#fafafa; max-width:600px;">
+      <h3 style="margin-top:0;">New Starter Details Form (recorded)</h3>
+      <p style="color:#64748b; font-size:0.85rem;">Completed: ${completedAt ? new Date(completedAt).toLocaleString('en-GB') : 'Unknown'}</p>
+      <h4>Agreed details</h4>
+      <p><strong>Start date:</strong> ${data.agreed_start_date || '—'} &nbsp; <strong>Pay rate:</strong> £${data.agreed_pay_rate || '—'}/hr</p>
+      <h4>1. You</h4>
+      <p><strong>Name:</strong> ${data.first_name || ''} ${data.last_name || ''} ${data.preferred_name ? '(Preferred: ' + data.preferred_name + ')' : ''}<br>
+      <strong>DOB:</strong> ${data.dob || '—'} &nbsp; <strong>Mobile:</strong> ${data.mobile || '—'} &nbsp; <strong>Email:</strong> ${data.email || '—'}<br>
+      <strong>Address:</strong> ${data.home_address || '—'}, ${data.town || ''}, ${data.postcode || ''}</p>
+      <h4>2. Emergency contact</h4>
+      <p><strong>Name:</strong> ${data.emergency_name || '—'} (${data.emergency_relationship || '—'}) &nbsp; <strong>Phone:</strong> ${data.emergency_phone || '—'}</p>
+      <h4>3. Pay</h4>
+      <p><strong>Account:</strong> ${data.bank_account_name || '—'} &nbsp; <strong>Sort:</strong> ${data.bank_sort_code || '—'} &nbsp; <strong>Acc:</strong> ${data.bank_account_number || '—'}<br>
+      <strong>NI:</strong> ${data.ni_number || '—'} &nbsp; <strong>Student loan:</strong> ${data.student_loan || '—'}</p>
+      <h4>4. Right to work</h4>
+      <p>${tick(data.rtw_passport)} UK/Irish passport &nbsp; ${tick(data.rtw_share_code)} Share code &nbsp; ${tick(data.rtw_other)} Other<br>
+      Share code: ${data.share_code || '—'}</p>
+      <h4>5. Work and availability</h4>
+      <p><strong>Days:</strong> ${data.days_available || '—'}<br>
+      <strong>Other job:</strong> ${data.other_job || '—'}<br>
+      ${tick(data.hygiene_level2)} Level 2 Food Hygiene &nbsp; ${tick(data.hygiene_will_complete)} Will complete within 2 weeks</p>
+      <h4>6. Health note</h4>
+      <p>${data.health_note || '—'}</p>
+      <h4>7. Photos and video</h4>
+      <p>${tick(data.photos_consent)} I understand I may appear in workplace photos and video</p>
+      <h4>8. Confirm</h4>
+      <p>${tick(data.confirm_true)} Details are true &nbsp; ${tick(data.confirm_contract)} Will confirm contract &nbsp; ${tick(data.confirm_phones)} No personal phones on floor<br>
+      <strong>Signature:</strong> ${data.signature_name || '—'} &nbsp; <strong>Date:</strong> ${data.signature_date || '—'}</p>
+    </div>
+  `;
+}
+
 async function openEmployeeProfile(staffId) {
   const { data: staff } = await db.from('staff').select('*').eq('id', staffId).single();
   const { data: docs } = await db.from('documents').select('*').eq('staff_id', staffId).order('uploaded_at', { ascending: false });
@@ -390,14 +539,11 @@ async function openEmployeeProfile(staffId) {
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
       <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;"></label>
-      <label>NI Number<br><input type="text" value="${staff.ni_number || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
-      <label>Phone<br><input type="text" value="${staff.phone || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
-      <label>Emergency Contact<br><input type="text" value="${staff.emergency_contact || ''} ${staff.emergency_phone || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
-      <label>Bank Details<br><input type="text" value="${staff.bank_account_name || ''} / ${staff.bank_sort_code || ''} / ${staff.bank_account_number || ''}" readonly style="width:100%; background:#f1f5f9;"></label>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
     <button type="button" onclick="sendPasswordInvite('${staff.email || ''}')" style="margin-top:1rem;">Send Invite / Reset Password</button>
+    ${staff.starter_form_completed ? renderStarterFormMirror(staff.starter_form_data, staff.starter_form_completed_at) : ''}
     <h4 style="margin-top:2rem;">Documents</h4>
     <div id="docs-list">${docs?.map(d => `<div style="margin:0.5rem 0;"><a href="${d.file_url}" target="_blank">${d.file_name || d.type}</a> (${d.type})</div>`).join('') || '<p>No documents</p>'}</div>
     <form id="upload-doc" style="margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem; max-width:480px;">
