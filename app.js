@@ -255,6 +255,7 @@ async function openEmployeeProfile(staffId) {
       <label>Date of Birth<br><input type="date" id="edit-dob" value="${staff.dob || ''}" style="width:100%;"></label>
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
+      <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;"></label>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
@@ -278,7 +279,8 @@ async function saveProfile(e, staffId) {
     name: `${first} ${last}`,
     dob: document.getElementById('edit-dob').value || null,
     address: document.getElementById('edit-address').value,
-    email: document.getElementById('edit-email').value
+    email: document.getElementById('edit-email').value,
+    hourly_rate: parseFloat(document.getElementById('edit-rate').value) || 0
   };
   const photoFile = document.getElementById('photo-upload').files[0];
   if (photoFile) {
@@ -333,6 +335,15 @@ function calculateHours(entries) {
     }
   });
   return total;
+}
+
+function hoursBetween(start, end) {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  return mins / 60;
 }
 
 function getWeekRange(offsetWeeks = 0) {
@@ -453,7 +464,7 @@ async function loadSchedule() {
     d.setDate(week.start.getDate() + i);
     dayDates.push(d.toISOString().slice(0,10));
   }
-  const { data: staff } = await db.from('staff').select('name').eq('owner_id', currentUser.id).order('name');
+  const { data: staff } = await db.from('staff').select('name, hourly_rate').eq('owner_id', currentUser.id).order('name');
   const startDate = week.start.toISOString().slice(0,10);
   const endDate = week.end.toISOString().slice(0,10);
   const { data: schedules } = await db.from('schedules')
@@ -468,32 +479,42 @@ async function loadSchedule() {
       <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
       <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
-    <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
-    <button onclick="downloadScheduleTemplate()" style="margin-left:0.5rem;">Download template</button></p>
-    <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
-    <button onclick="uploadSchedule()">Upload Schedule</button>
-    <button onclick="saveScheduleTable()" style="margin-left:0.5rem; background:#16a34a;">Save Timetable</button>
-    <div style="overflow-x:auto; margin-top:1.5rem;">
+    <div style="overflow-x:auto; margin-bottom:2rem;">
       <table style="border-collapse:collapse; width:100%; background:white;">
         <thead><tr>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:left;">Team Member</th>
           ${days.map(d => `<th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${d}</th>`).join('')}
+          <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Total Hours</th>
+          <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Gross Wage</th>
         </tr></thead>
         <tbody>`;
   (staff || []).forEach(s => {
+    let totalHours = 0;
     table += `<tr data-name="${s.name}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
       const shift = (schedules || []).find(sc => sc.name === s.name && sc.date === date);
       const start = shift?.start_time || '';
       const end = shift?.end_time || '';
+      totalHours += hoursBetween(start, end);
       table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;">
         <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:70px; font-size:0.8rem;">
         <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:70px; font-size:0.8rem; margin-top:2px;">
       </td>`;
     });
+    const rate = parseFloat(s.hourly_rate) || 0;
+    const wage = (totalHours * rate).toFixed(2);
+    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage}</td>`;
     table += '</tr>';
   });
   table += '</tbody></table></div>';
+  table += `<div style="border-top:1px solid #e2e8f0; padding-top:1.5rem;">
+    <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
+    <button onclick="downloadScheduleTemplate()" style="margin-left:0.5rem;">Download template</button></p>
+    <input type="file" id="schedule-file" accept=".csv" style="margin:1rem 0;">
+    <button onclick="uploadSchedule()">Upload Schedule</button>
+    <button onclick="saveScheduleTable()" style="margin-left:0.5rem; background:#16a34a;">Save Timetable</button>
+  </div>`;
   tab.innerHTML = table;
 }
 
