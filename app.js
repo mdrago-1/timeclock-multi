@@ -845,7 +845,8 @@ async function loadTimesheetSummary() {
   const end = new Date(range.end);
   for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
     dates.push(d.toISOString().slice(0,10));
-    html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${d.toLocaleDateString('en-GB', {day:'numeric', month:'short'})}</th>`;
+    const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${dayLabel}</th>`;
   }
   html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Actions</th></tr></thead><tbody>';
   Object.entries(byStaff).forEach(([id, s]) => {
