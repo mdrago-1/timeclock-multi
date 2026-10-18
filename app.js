@@ -265,11 +265,11 @@ async function loadMemberShifts(staffName) {
   }
   let html = '';
   for (const p of published) {
-    const start = new Date(p.week_start);
+    const start = parseLocalDate(p.week_start);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
-    const startStr = start.toISOString().slice(0,10);
-    const endStr = end.toISOString().slice(0,10);
+    const startStr = toDateString(start);
+    const endStr = toDateString(end);
     const { data: shifts } = await db.from('schedules')
       .select('*')
       .eq('owner_id', currentUser.id)
@@ -280,11 +280,10 @@ async function loadMemberShifts(staffName) {
     html += `<div style="margin-bottom:1.5rem; padding:0.75rem; background:#f8fafc; border-radius:8px;">
       <strong>${formatDate(start)} – ${formatDate(end)}</strong>
       <table style="width:100%; margin-top:0.5rem; border-collapse:collapse;">`;
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     for (let i = 0; i < 7; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      const dateStr = d.toISOString().slice(0,10);
+      const dateStr = toDateString(d);
       const shift = (shifts || []).find(s => s.date === dateStr);
       const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       html += `<tr>
@@ -773,6 +772,18 @@ function getWeekRange(offsetWeeks = 0) {
   return { start: monday, end: sunday };
 }
 
+function toDateString(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseLocalDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatDate(d) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
@@ -784,8 +795,8 @@ function getDateRange() {
     const from = document.getElementById('date-from')?.value;
     const to = document.getElementById('date-to')?.value;
     if (!from || !to) return null;
-    const start = new Date(from); start.setHours(0,0,0,0);
-    const end = new Date(to); end.setHours(23,59,59,999);
+    const start = parseLocalDate(from); start.setHours(0,0,0,0);
+    const end = parseLocalDate(to); end.setHours(23,59,59,999);
     return { start, end };
   }
   return null;
@@ -852,7 +863,7 @@ async function loadTimesheetSummary() {
   const start = new Date(range.start);
   const end = new Date(range.end);
   for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
-    dates.push(d.toISOString().slice(0,10));
+    dates.push(toDateString(d));
     const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${dayLabel}</th>`;
   }
@@ -976,11 +987,11 @@ async function loadSchedule() {
   for (let i = 0; i < 7; i++) {
     const d = new Date(week.start);
     d.setDate(week.start.getDate() + i);
-    dayDates.push(d.toISOString().slice(0,10));
+    dayDates.push(toDateString(d));
   }
   const { data: staff } = await db.from('staff').select('name, email, hourly_rate').eq('owner_id', currentUser.id).order('name');
-  const startDate = week.start.toISOString().slice(0,10);
-  const endDate = week.end.toISOString().slice(0,10);
+  const startDate = toDateString(week.start);
+  const endDate = toDateString(week.end);
   const { data: schedules } = await db.from('schedules')
     .select('*')
     .eq('owner_id', currentUser.id)
@@ -1008,7 +1019,7 @@ async function loadSchedule() {
         <thead><tr>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:left;">Team Member</th>
           ${dayDates.map(dateStr => {
-            const d = new Date(dateStr);
+            const d = parseLocalDate(dateStr);
             const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
             return `<th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${label}</th>`;
           }).join('')}
@@ -1080,7 +1091,7 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
-    const dateStr = d.toISOString().slice(0,10);
+    const dateStr = toDateString(d);
     const shift = (shifts || []).find(s => s.date === dateStr);
     const dayName = days[i];
     const dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -1128,8 +1139,8 @@ async function sendEmail(to, subject, html) {
 async function sendShiftsToMember(name, email) {
   if (!email) return alert('No email on file for ' + name);
   const week = getWeekRange(currentWeekOffset);
-  const startDate = week.start.toISOString().slice(0,10);
-  const endDate = week.end.toISOString().slice(0,10);
+  const startDate = toDateString(week.start);
+  const endDate = toDateString(week.end);
   const { data: schedules } = await db.from('schedules')
     .select('*')
     .eq('owner_id', currentUser.id)
@@ -1150,8 +1161,8 @@ window.sendShiftsToMember = sendShiftsToMember;
 async function sendToAllTeam() {
   const { data: staff } = await db.from('staff').select('name, email').eq('owner_id', currentUser.id);
   const week = getWeekRange(currentWeekOffset);
-  const startDate = week.start.toISOString().slice(0,10);
-  const endDate = week.end.toISOString().slice(0,10);
+  const startDate = toDateString(week.start);
+  const endDate = toDateString(week.end);
   const { data: schedules } = await db.from('schedules')
     .select('*')
     .eq('owner_id', currentUser.id)
@@ -1190,8 +1201,8 @@ async function saveScheduleTable() {
       }
     });
   });
-  const startDate = week.start.toISOString().slice(0,10);
-  const endDate = week.end.toISOString().slice(0,10);
+  const startDate = toDateString(week.start);
+  const endDate = toDateString(week.end);
   await db.from('schedules').delete().eq('owner_id', currentUser.id).gte('date', startDate).lte('date', endDate);
   if (toInsert.length) {
     const { error } = await db.from('schedules').insert(toInsert);
