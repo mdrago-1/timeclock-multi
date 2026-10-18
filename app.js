@@ -4,7 +4,7 @@ let currentStaff = null;
 let currentUser = null;
 let selectedRange = 'this-week';
 let currentWeekOffset = 0;
-const ADMIN_PASSWORD = '0506';
+const ADMIN_PASSWORD = 'Admin0506'; // Minimum 8 characters
 const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -90,12 +90,20 @@ function showKiosk() {
 function showAdminPassword() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('admin-password-screen').classList.add('active');
-  document.getElementById('admin-password').value = '';
+  const pwInput = document.getElementById('admin-password');
+  if (pwInput) {
+    pwInput.value = '';
+    pwInput.minLength = 8;
+    pwInput.placeholder = 'Admin password (min 8 characters)';
+  }
 }
 
 function checkAdminPassword(e) {
   e.preventDefault();
   const pw = document.getElementById('admin-password').value;
+  if (pw.length < 8) {
+    return alert('Password must be at least 8 characters');
+  }
   if (pw === ADMIN_PASSWORD) {
     showAdmin();
   } else {
@@ -964,7 +972,6 @@ window.changeWeek = changeWeek;
 
 async function loadSchedule() {
   const week = getWeekRange(currentWeekOffset);
-  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const dayDates = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(week.start);
@@ -995,11 +1002,16 @@ async function loadSchedule() {
       <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
     <div style="margin-bottom:1rem;">${publishBtn}</div>
+    <h4 style="margin:0.5rem 0 1rem;">Rota</h4>
     <div style="overflow-x:auto; margin-bottom:1rem;">
       <table style="border-collapse:collapse; width:100%; background:white;">
         <thead><tr>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:left;">Team Member</th>
-          ${days.map(d => `<th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${d}</th>`).join('')}
+          ${dayDates.map(dateStr => {
+            const d = new Date(dateStr);
+            const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+            return `<th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${label}</th>`;
+          }).join('')}
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Total Hours</th>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Gross Wage</th>
           <th style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Actions</th>
@@ -1028,7 +1040,7 @@ async function loadSchedule() {
     table += '</tr>';
   });
   table += `<tr style="background:#f1f5f9; font-weight:700;">
-    <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${days.length + 1}">Weekly Total</td>
+    <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${dayDates.length + 1}">Weekly Total</td>
     <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
     <td></td>
   </tr>`;
