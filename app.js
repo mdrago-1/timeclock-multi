@@ -230,6 +230,8 @@ function showMemberPortal(staff) {
   content.innerHTML = `
     <h2>${staff.name}</h2>
     ${formSection}
+    <h3 style="margin-top:2rem;">My Shifts</h3>
+    <div id="member-shifts" style="margin-top:0.5rem;">Loading...</div>
     <h3 style="margin-top:2rem;">My Hours</h3>
     <div id="member-hours" style="margin-top:0.5rem;">Loading...</div>
     <button onclick="showKiosk()" style="margin-top:1.5rem;">Back to Kiosk</button>
@@ -237,7 +239,54 @@ function showMemberPortal(staff) {
   if (!staff.starter_form_completed) {
     document.getElementById('starter-form').onsubmit = (e) => submitStarterForm(e, staff.id);
   }
+  loadMemberShifts(staff.name);
   loadMemberHours(staff.id);
+}
+
+async function loadMemberShifts(staffName) {
+  const el = document.getElementById('member-shifts');
+  if (!el) return;
+  const { data: published } = await db.from('published_weeks')
+    .select('week_start')
+    .eq('owner_id', currentUser.id)
+    .order('week_start', { ascending: false })
+    .limit(4);
+  if (!published?.length) {
+    el.innerHTML = '<p>No published timetable yet.</p>';
+    return;
+  }
+  let html = '';
+  for (const p of published) {
+    const start = new Date(p.week_start);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    const startStr = start.toISOString().slice(0,10);
+    const endStr = end.toISOString().slice(0,10);
+    const { data: shifts } = await db.from('schedules')
+      .select('*')
+      .eq('owner_id', currentUser.id)
+      .eq('name', staffName)
+      .gte('date', startStr)
+      .lte('date', endStr)
+      .order('date');
+    html += `<div style="margin-bottom:1.5rem; padding:0.75rem; background:#f8fafc; border-radius:8px;">
+      <strong>${formatDate(start)} – ${formatDate(end)}</strong>
+      <table style="width:100%; margin-top:0.5rem; border-collapse:collapse;">`;
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateStr = d.toISOString().slice(0,10);
+      const shift = (shifts || []).find(s => s.date === dateStr);
+      const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      html += `<tr>
+        <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0;">${label}</td>
+        <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${shift?.start_time || shift?.end_time ? (shift.start_time || '') + ' – ' + (shift.end_time || '') : 'Off'}</td>
+      </tr>`;
+    }
+    html += '</table></div>';
+  }
+  el.innerHTML = html;
 }
 
 async function loadMemberHours(staffId) {
@@ -929,13 +978,22 @@ async function loadSchedule() {
     .eq('owner_id', currentUser.id)
     .gte('date', startDate)
     .lte('date', endDate);
+  const { data: published } = await db.from('published_weeks')
+    .select('week_start')
+    .eq('owner_id', currentUser.id)
+    .eq('week_start', startDate)
+    .maybeSingle();
   const tab = document.getElementById('schedule-tab');
   const title = `${formatDate(week.start)} – ${formatDate(week.end)}`;
+  const publishBtn = published 
+    ? `<button disabled style="background:#94a3b8;">Published</button>` 
+    : `<button onclick="publishWeek('${startDate}')" style="background:#2563eb;">Publish to member portal</button>`;
   let table = `<div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
       <button onclick="changeWeek(-1)" style="font-size:1.2rem;">←</button>
       <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
       <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
+    <div style="margin-bottom:1rem;">${publishBtn}</div>
     <div style="overflow-x:auto; margin-bottom:1rem;">
       <table style="border-collapse:collapse; width:100%; background:white;">
         <thead><tr>
@@ -986,6 +1044,18 @@ async function loadSchedule() {
   </div>`;
   tab.innerHTML = table;
 }
+
+async function publishWeek(weekStart) {
+  const { error } = await db.from('published_weeks').upsert({
+    owner_id: currentUser.id,
+    week_start: weekStart,
+    published_at: new Date().toISOString()
+  }, { onConflict: 'owner_id,week_start' });
+  if (error) return alert(error.message);
+  alert('Timetable published to member portals');
+  loadSchedule();
+}
+window.publishWeek = publishWeek;
 
 function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
   const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
