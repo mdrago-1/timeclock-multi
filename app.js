@@ -4,7 +4,7 @@ let currentStaff = null;
 let currentUser = null;
 let selectedRange = 'this-week';
 let currentWeekOffset = 0;
-const ADMIN_PASSWORD = 'Admin0506'; // Minimum 8 characters
+let ADMIN_PASSWORD = localStorage.getItem('admin_password') || 'Admin0506';
 const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -526,8 +526,30 @@ async function loadSettings() {
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
     <p style="margin-top:1rem; font-size:0.85rem; color:#64748b;">Create a public bucket named <strong>logos</strong> in Supabase Storage if it does not exist.</p>
+
+    <h3 style="margin-top:2.5rem;">Change Admin Password</h3>
+    <p>Minimum 8 characters. This password is used to access the admin area from the kiosk.</p>
+    <form id="change-admin-pw" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
+      <input type="password" id="new-admin-pw" placeholder="New password" minlength="8" required>
+      <input type="password" id="confirm-admin-pw" placeholder="Confirm password" minlength="8" required>
+      <button type="submit">Update Admin Password</button>
+    </form>
   `;
   document.getElementById('logo-form').onsubmit = uploadLogo;
+  document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
+}
+
+function changeAdminPassword(e) {
+  e.preventDefault();
+  const newPw = document.getElementById('new-admin-pw').value;
+  const confirmPw = document.getElementById('confirm-admin-pw').value;
+  if (newPw.length < 8) return alert('Password must be at least 8 characters');
+  if (newPw !== confirmPw) return alert('Passwords do not match');
+  ADMIN_PASSWORD = newPw;
+  localStorage.setItem('admin_password', newPw);
+  alert('Admin password updated');
+  document.getElementById('new-admin-pw').value = '';
+  document.getElementById('confirm-admin-pw').value = '';
 }
 
 async function uploadLogo(e) {
@@ -539,7 +561,7 @@ async function uploadLogo(e) {
   }
   const path = `${currentUser.id}/logo-${Date.now()}-${file.name}`;
   const { error: upErr } = await db.storage.from('logos').upload(path, file);
-  if (upErr) return alert(upErr.message + ' — Create a public bucket named "logos" in Supabase Storage if it does not exist.');
+  if (upErr) return alert(upErr.message + ' \n\nCreate a public bucket named "logos" in Supabase Storage (Storage → New bucket → logos → Public).');
   const { data } = db.storage.from('logos').getPublicUrl(path);
   const { error } = await db.from('profiles').update({ logo_url: data.publicUrl }).eq('id', currentUser.id);
   if (error) return alert(error.message);
