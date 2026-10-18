@@ -525,7 +525,6 @@ async function loadSettings() {
       <input type="file" id="logo-file" accept="image/*" required>
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
-    <p style="margin-top:1rem; font-size:0.85rem; color:#64748b;">Create a public bucket named <strong>logos</strong> in Supabase Storage if it does not exist.</p>
 
     <h3 style="margin-top:2.5rem;">Change Admin Password</h3>
     <p>Minimum 8 characters. This password is used to access the admin area from the kiosk.</p>
@@ -561,7 +560,7 @@ async function uploadLogo(e) {
   }
   const path = `${currentUser.id}/logo-${Date.now()}-${file.name}`;
   const { error: upErr } = await db.storage.from('logos').upload(path, file);
-  if (upErr) return alert(upErr.message + ' \n\nCreate a public bucket named "logos" in Supabase Storage (Storage → New bucket → logos → Public).');
+  if (upErr) return alert(upErr.message);
   const { data } = db.storage.from('logos').getPublicUrl(path);
   const { error } = await db.from('profiles').update({ logo_url: data.publicUrl }).eq('id', currentUser.id);
   if (error) return alert(error.message);
