@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -34,10 +34,12 @@
     <!-- Kiosk Screen -->
     <div id="kiosk-screen" class="screen">
       <header class="kiosk-header">
-        <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
-        <div id="current-time"></div>
-        <div style="display:flex; align-items:center; gap:0.75rem;">
+        <div class="kiosk-left">
           <div class="shop-logo-placeholder kiosk-header-logo">Shop</div>
+          <div class="logo-small"><div class="clock-icon"></div> TimeClock</div>
+        </div>
+        <div id="current-time" class="retro-time"></div>
+        <div class="kiosk-right">
           <button id="member-btn">Member Portal</button>
           <button id="admin-btn">Admin</button>
         </div>
