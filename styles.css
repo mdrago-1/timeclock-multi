@@ -32,6 +32,14 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 /* Kiosk Header */
 .kiosk-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: #2563eb; color: white; }
 .kiosk-header #current-time { font-weight: 600; }
+.kiosk-header-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: white;
+  color: #2563eb;
+  font-size: 0.65rem;
+}
 
 /* PIN Screen */
 .pin-container { text-align: center; padding: 2rem 1rem; }
