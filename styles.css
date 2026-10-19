@@ -66,13 +66,27 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
   font-family: 'Caveat', cursive;
   font-weight: 700;
 }
-.action-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; max-width: 420px; margin: 0 auto 2rem; }
-.action-btn { padding: 1.5rem 1rem; font-size: 1.1rem; border-radius: 1rem; color: white; font-weight: 600; }
+.action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  max-width: 420px;
+  margin: 0 auto 2rem;
+}
+.action-btn {
+  padding: 1.5rem 2rem;
+  font-size: 1.1rem;
+  border-radius: 1rem;
+  color: white;
+  font-weight: 600;
+  min-width: 180px;
+}
 .action-btn.clock-in { background: #16a34a; }
 .action-btn.start-break { background: #f59e0b; }
 .action-btn.end-break { background: #2563eb; }
 .action-btn.clock-out { background: #dc2626; }
-.action-btn.profile { background: #64748b; grid-column: 1 / -1; }
+.action-btn.profile { background: #64748b; }
 .bottom-logos { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 2rem; }
 .shop-logo-placeholder { width: 48px; height: 48px; border-radius: 50%; background: #f59e0b; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.7rem; }
 .divider { width: 1px; height: 32px; background: #e2e8f0; }
