@@ -151,7 +151,7 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    padding-top: 1.5rem; /* larger top margin */
+    padding-top: 1.5rem;
   }
 
   .kiosk-header {
@@ -168,22 +168,22 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
   .kiosk-left {
     order: 1;
     justify-content: center;
-    gap: 0.75rem;
+    gap: 1rem;
   }
 
   .kiosk-header-logo {
-    width: 64px;
-    height: 64px;
-    border-radius: 12px;
+    width: 128px;
+    height: 128px;
+    border-radius: 16px;
   }
 
   .logo-small {
-    font-size: 1.15rem;
+    font-size: 1.4rem;
   }
 
   .logo-small .clock-icon {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
   }
 
   .kiosk-right {
@@ -193,16 +193,16 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
 
   .retro-time {
     order: 2;
-    font-size: 2.4rem;
+    font-size: 3.6rem;
     color: #e0f2fe;
-    margin: 0.25rem 0;
+    margin: 0.4rem 0;
   }
 
   .pin-container {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 1rem 1rem 2cm; /* ~2cm from bottom */
+    padding: 1rem 1rem 2cm;
   }
 
   .pin-container h2 {
@@ -210,7 +210,7 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
   }
 
   .keypad {
-    margin-top: auto; /* push keypad down */
+    margin-top: auto;
     margin-bottom: 0;
     max-width: 280px;
   }
