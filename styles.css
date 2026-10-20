@@ -145,75 +145,78 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 
 table, th, td { font-family: Inter, system-ui, sans-serif; }
 
-/* Mobile adjustments */
+/* Mobile kiosk layout */
 @media (max-width: 640px) {
+  #kiosk-screen {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-top: 1.5rem; /* larger top margin */
+  }
+
   .kiosk-header {
-    grid-template-columns: auto 1fr auto;
-    padding: 0.5rem 0.6rem;
-    min-height: 64px;
-    gap: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem 0.75rem 1.25rem;
+    min-height: auto;
+    background: #2563eb;
   }
-  .retro-time {
-    font-size: 1.6rem;
-    letter-spacing: 0.02em;
+
+  .kiosk-left {
+    order: 1;
+    justify-content: center;
+    gap: 0.75rem;
   }
-  .logo-small {
-    font-size: 0.85rem;
-    gap: 0.3rem;
-  }
-  .logo-small .clock-icon {
-    width: 22px;
-    height: 22px;
-  }
+
   .kiosk-header-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+  }
+
+  .logo-small {
+    font-size: 1.15rem;
+  }
+
+  .logo-small .clock-icon {
     width: 32px;
     height: 32px;
   }
-  .kiosk-right button {
-    padding: 0.4rem 0.45rem;
-    font-size: 0.7rem;
-  }
-  .pin-container h2 {
-    font-size: 1.5rem;
-  }
-  #welcome-message {
-    font-size: 2.2rem;
-  }
-  .key {
-    padding: 1.1rem 0.5rem;
-    font-size: 1.35rem;
-  }
-  .keypad {
-    max-width: 260px;
-    gap: 0.6rem;
-  }
-}
 
-@media (max-width: 420px) {
-  .kiosk-header {
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto;
-    min-height: auto;
-    padding: 0.5rem;
-  }
-  .kiosk-left {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .retro-time {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    font-size: 2rem;
-    margin-top: 0.25rem;
-    justify-self: center;
-  }
   .kiosk-right {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
+    order: 3;
+    margin-top: 0.25rem;
   }
+
+  .retro-time {
+    order: 2;
+    font-size: 2.4rem;
+    color: #e0f2fe;
+    margin: 0.25rem 0;
+  }
+
+  .pin-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1rem 2cm; /* ~2cm from bottom */
+  }
+
+  .pin-container h2 {
+    margin-top: 1.25rem;
+  }
+
+  .keypad {
+    margin-top: auto; /* push keypad down */
+    margin-bottom: 0;
+    max-width: 280px;
+  }
+
   .kiosk-right button {
-    font-size: 0.65rem;
-    padding: 0.35rem 0.4rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8rem;
   }
 }
