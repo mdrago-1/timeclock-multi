@@ -145,13 +145,15 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 
 table, th, td { font-family: Inter, system-ui, sans-serif; }
 
-/* Mobile kiosk layout */
+/* Mobile kiosk layout – fits one screen, no scroll */
 @media (max-width: 640px) {
   #kiosk-screen {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    padding-top: 1.5rem;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    padding-top: 0.75rem;
   }
 
   .kiosk-header {
@@ -159,64 +161,83 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
-    padding: 1rem 0.75rem 1.25rem;
+    gap: 0.4rem;
+    padding: 0.6rem 0.5rem 0.75rem;
     min-height: auto;
     background: #2563eb;
+    flex-shrink: 0;
   }
 
   .kiosk-left {
     order: 1;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.6rem;
   }
 
   .kiosk-header-logo {
-    width: 128px;
-    height: 128px;
-    border-radius: 16px;
+    width: 88px;
+    height: 88px;
+    border-radius: 12px;
   }
 
   .logo-small {
-    font-size: 1.4rem;
+    font-size: 1.05rem;
   }
 
   .logo-small .clock-icon {
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
   }
 
   .kiosk-right {
     order: 3;
-    margin-top: 0.25rem;
+    margin-top: 0.15rem;
   }
 
   .retro-time {
     order: 2;
-    font-size: 3.6rem;
+    font-size: 2.1rem;
     color: #e0f2fe;
-    margin: 0.4rem 0;
+    margin: 0.15rem 0;
   }
 
   .pin-container {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 1rem 1rem 2cm;
+    padding: 0.5rem 0.75rem 1.25rem;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .pin-container h2 {
-    margin-top: 1.25rem;
+    font-size: 1.4rem;
+    margin: 0.5rem 0 0.4rem;
+  }
+
+  .pin-dots {
+    margin: 0.6rem 0;
+  }
+
+  .pin-hint {
+    margin-bottom: 0.6rem;
+    font-size: 0.9rem;
   }
 
   .keypad {
     margin-top: auto;
     margin-bottom: 0;
-    max-width: 280px;
+    max-width: 240px;
+    gap: 0.5rem;
+  }
+
+  .key {
+    padding: 0.9rem 0.4rem;
+    font-size: 1.3rem;
   }
 
   .kiosk-right button {
-    padding: 0.45rem 0.65rem;
-    font-size: 0.8rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
   }
 }
