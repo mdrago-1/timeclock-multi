@@ -108,7 +108,7 @@ function setupEventListeners() {
       if (tab.dataset.tab === 'timesheets') loadTimesheets();
       if (tab.dataset.tab === 'staff') loadStaff();
       if (tab.dataset.tab === 'schedule') {
-        if (!isPaid()) {
+        if (!hasSubscription()) {
           showPaywall('Scheduling');
           // Switch back to staff tab
           document.querySelector('.tab[data-tab="staff"]').click();
@@ -125,20 +125,36 @@ let isUserPaid = false;
 
 async function refreshPaidStatus() {
   if (!currentUser) { isUserPaid = false; return; }
-  const { data } = await db.from('profiles').select('paid').eq('id', currentUser.id).single();
-  isUserPaid = !!data?.paid;
-  // Also check pending payments by email
-  if (!isUserPaid && currentUser.email) {
+  const { data } = await db.from('profiles').select('paid, subscription_until').eq('id', currentUser.id).single();
+  const now = new Date();
+  const trialActive = data?.subscription_until && new Date(data.subscription_until) > now;
+  isUserPaid = !!(data?.paid && trialActive) || !!(data?.subscription_until && new Date(data.subscription_until) > now);
+  // Also honour a simple paid flag for the one-off (clock/timesheets always available if paid)
+  // For subscription features we use the trial/subscription window
+  window._subscriptionActive = trialActive || !!(data?.subscription_until && new Date(data.subscription_until) > now);
+
+  if (!data?.paid && currentUser.email) {
     const { data: pending } = await db.from('pending_payments').select('paid').eq('email', currentUser.email.toLowerCase()).maybeSingle();
     if (pending?.paid) {
-      await db.from('profiles').update({ paid: true }).eq('id', currentUser.id);
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14);
+      await db.from('profiles').update({ 
+        paid: true, 
+        subscription_until: trialEnd.toISOString() 
+      }).eq('id', currentUser.id);
       isUserPaid = true;
+      window._subscriptionActive = true;
     }
   }
 }
 
 function isPaid() {
+  // One-off purchase unlocks basic features
   return isUserPaid;
+}
+
+function hasSubscription() {
+  return !!window._subscriptionActive;
 }
 
 function showPaywall(feature) {
@@ -866,7 +882,7 @@ function renderStarterFormMirror(data, completedAt) {
 }
 
 async function openEmployeeProfile(staffId) {
-  if (!isPaid()) {
+  if (!hasSubscription()) {
     showPaywall('Employee details, starter form and documents');
     return;
   }
