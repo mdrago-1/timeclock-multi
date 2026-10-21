@@ -70,7 +70,7 @@ function setupEventListeners() {
 
   const keypad = document.getElementById('keypad');
   if (keypad && !keypad.children.length) {
-    ['1','2','3','4','5','6','7','8','9','C','0','âœ“'].forEach(d => {
+    ['1','2','3','4','5','6','7','8','9','C','0','\u2713'].forEach(d => {
       const btn = document.createElement('button');
       btn.className = 'key';
       btn.textContent = d;
@@ -172,7 +172,7 @@ function showMemberPortal(staff) {
           <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">Agreed details</h4>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
             <label>Agreed start date (DD/MM/YYYY)<br><input type="date" id="sf-start-date" value="${data.agreed_start_date || ''}" required style="width:100%;"></label>
-            <label>Agreed pay rate (Â£ per hour)<br><input type="number" id="sf-pay-rate" step="0.01" min="0" value="${data.agreed_pay_rate || ''}" required style="width:100%;"></label>
+            <label>Agreed pay rate (£ per hour)<br><input type="number" id="sf-pay-rate" step="0.01" min="0" value="${data.agreed_pay_rate || ''}" required style="width:100%;"></label>
           </div>
         </div>
         <div>
@@ -226,7 +226,7 @@ function showMemberPortal(staff) {
           <label>Days you can usually work<br><input type="text" id="sf-days" value="${data.days_available || ''}" required style="width:100%;"></label>
           <label style="margin-top:0.5rem; display:block;">Do you have another job? If yes, where and which days?<br><textarea id="sf-other-job" style="width:100%; min-height:50px;">${data.other_job || ''}</textarea></label>
           <label style="margin-top:0.5rem; display:block;"><input type="checkbox" id="sf-hygiene-yes" ${data.hygiene_level2 ? 'checked' : ''}> I already hold Level 2 Food Hygiene</label>
-          <label><input type="checkbox" id="sf-hygiene-no" ${data.hygiene_will_complete ? 'checked' : ''}> I do not â€” I will complete it within 2 weeks</label>
+          <label><input type="checkbox" id="sf-hygiene-no" ${data.hygiene_will_complete ? 'checked' : ''}> I do not — I will complete it within 2 weeks</label>
         </div>
         <div>
           <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">6. Health note for food handling (optional)</h4>
@@ -297,7 +297,7 @@ async function loadMemberShifts(staffName) {
       .lte('date', endStr)
       .order('date');
     html += `<div style="margin-bottom:1.5rem; padding:0.75rem; background:#f8fafc; border-radius:8px;">
-      <strong>${formatDate(start)} â€“ ${formatDate(end)}</strong>
+      <strong>${formatDate(start)} – ${formatDate(end)}</strong>
       <table style="width:100%; margin-top:0.5rem; border-collapse:collapse;">`;
     for (let i = 0; i < 7; i++) {
       const d = new Date(start);
@@ -307,7 +307,7 @@ async function loadMemberShifts(staffName) {
       const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       html += `<tr>
         <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0;">${label}</td>
-        <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${shift?.start_time || shift?.end_time ? (shift.start_time || '') + ' â€“ ' + (shift.end_time || '') : 'Off'}</td>
+        <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${shift?.start_time || shift?.end_time ? (shift.start_time || '') + ' – ' + (shift.end_time || '') : 'Off'}</td>
       </tr>`;
     }
     html += '</table></div>';
@@ -436,7 +436,7 @@ async function login(e) {
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.dataset.originalText = submitBtn.textContent;
-    submitBtn.textContent = 'Signing inâ€¦';
+    submitBtn.textContent = 'Signing in…';
   }
 
   try {
@@ -479,7 +479,7 @@ async function forgotPassword() {
 
 function handleKey(d) {
   if (d === 'C') currentPin = '';
-  else if (d === 'âœ“') { validatePin(); return; }
+  else if (d === '\u2713') { validatePin(); return; }
   else if (currentPin.length < 4) currentPin += d;
   updatePinDots();
 }
@@ -568,35 +568,40 @@ async function updateShopLogo() {
 async function applyClockStyle() {
   const el = document.getElementById('current-time');
   if (!el) return;
-  const style = localStorage.getItem('clock_style') || 'flap';
-  el.classList.remove('clock-flap', 'clock-neon', 'clock-modern');
+  const style = localStorage.getItem('clock_style') || 'plain';
+  el.classList.remove('clock-flap', 'clock-neon', 'clock-plain');
   el.classList.add('clock-' + style);
 
-  // Also update live preview in settings if present
-  const preview = document.getElementById('clock-preview');
-  if (preview) {
-    preview.classList.remove('clock-flap', 'clock-neon', 'clock-modern');
-    preview.classList.add('clock-' + style);
-    preview.textContent = el.textContent || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
+  // Update the three static previews if present
+  document.querySelectorAll('.clock-preview-item').forEach(p => {
+    const s = p.dataset.style;
+    if (s) {
+      p.classList.remove('clock-flap', 'clock-neon', 'clock-plain');
+      p.classList.add('clock-' + s);
+    }
+  });
 }
 
 async function loadSettings() {
   const tab = document.getElementById('settings-tab');
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
-  const currentStyle = localStorage.getItem('clock_style') || 'flap';
+  const currentStyle = localStorage.getItem('clock_style') || 'plain';
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   tab.innerHTML = `
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
+      <button type="button" class="clock-style-btn" data-style="plain" style="padding:0.6rem 1rem; background:${currentStyle==='plain'?'#2563eb':'#e2e8f0'}; color:${currentStyle==='plain'?'white':'#0f172a'};">Plain</button>
       <button type="button" class="clock-style-btn" data-style="flap" style="padding:0.6rem 1rem; background:${currentStyle==='flap'?'#2563eb':'#e2e8f0'}; color:${currentStyle==='flap'?'white':'#0f172a'};">Split-flap</button>
       <button type="button" class="clock-style-btn" data-style="neon" style="padding:0.6rem 1rem; background:${currentStyle==='neon'?'#2563eb':'#e2e8f0'}; color:${currentStyle==='neon'?'white':'#0f172a'};">Neon</button>
-      <button type="button" class="clock-style-btn" data-style="modern" style="padding:0.6rem 1rem; background:${currentStyle==='modern'?'#2563eb':'#e2e8f0'}; color:${currentStyle==='modern'?'white':'#0f172a'};">Modern</button>
     </div>
     <div style="margin:0.5rem 0 1.5rem; text-align:center;">
-      <p style="font-size:0.85rem; color:#64748b; margin-bottom:0.4rem;">Live preview</p>
-      <div id="clock-preview" class="clock-${currentStyle}" style="display:inline-block; font-size:1.75rem; padding:0.3em 0.6em;">${now}</div>
+      <p style="font-size:0.85rem; color:#64748b; margin-bottom:0.4rem;">Preview of each style</p>
+      <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
+        <div class="clock-preview-item clock-plain" data-style="plain">${now}</div>
+        <div class="clock-preview-item clock-flap" data-style="flap">${now}</div>
+        <div class="clock-preview-item clock-neon" data-style="neon">${now}</div>
+      </div>
     </div>
 
     <h3>Business Logo</h3>
@@ -624,7 +629,6 @@ async function loadSettings() {
       loadSettings();
     });
   });
-  // Apply initial preview style
   applyClockStyle();
 }
 
@@ -716,36 +720,36 @@ window.resetStarterForm = resetStarterForm;
 
 function renderStarterFormMirror(data, completedAt) {
   if (!data) return '<p>No starter form data.</p>';
-  const tick = (v) => v ? 'âœ“' : '';
+  const tick = (v) => v ? '\u2713' : '';
   return `
     <div style="border:1px solid #e2e8f0; padding:1rem; margin-top:1rem; background:#fafafa; max-width:600px;">
       <h3 style="margin-top:0;">New Starter Details Form (recorded)</h3>
       <p style="color:#64748b; font-size:0.85rem;">Completed: ${completedAt ? new Date(completedAt).toLocaleString('en-GB') : 'Unknown'}</p>
       <h4>Agreed details</h4>
-      <p><strong>Start date:</strong> ${data.agreed_start_date || 'â€”'} &nbsp; <strong>Pay rate:</strong> Â£${data.agreed_pay_rate || 'â€”'}/hr</p>
+      <p><strong>Start date:</strong> ${data.agreed_start_date || '—'} &nbsp; <strong>Pay rate:</strong> £${data.agreed_pay_rate || '—'}/hr</p>
       <h4>1. You</h4>
       <p><strong>Name:</strong> ${data.first_name || ''} ${data.last_name || ''} ${data.preferred_name ? '(Preferred: ' + data.preferred_name + ')' : ''}<br>
-      <strong>DOB:</strong> ${data.dob || 'â€”'} &nbsp; <strong>Mobile:</strong> ${data.mobile || 'â€”'} &nbsp; <strong>Email:</strong> ${data.email || 'â€”'}<br>
-      <strong>Address:</strong> ${data.home_address || 'â€”'}, ${data.town || ''}, ${data.postcode || ''}</p>
+      <strong>DOB:</strong> ${data.dob || '—'} &nbsp; <strong>Mobile:</strong> ${data.mobile || '—'} &nbsp; <strong>Email:</strong> ${data.email || '—'}<br>
+      <strong>Address:</strong> ${data.home_address || '—'}, ${data.town || ''}, ${data.postcode || ''}</p>
       <h4>2. Emergency contact</h4>
-      <p><strong>Name:</strong> ${data.emergency_name || 'â€”'} (${data.emergency_relationship || 'â€”'}) &nbsp; <strong>Phone:</strong> ${data.emergency_phone || 'â€”'}</p>
+      <p><strong>Name:</strong> ${data.emergency_name || '—'} (${data.emergency_relationship || '—'}) &nbsp; <strong>Phone:</strong> ${data.emergency_phone || '—'}</p>
       <h4>3. Pay</h4>
-      <p><strong>Account:</strong> ${data.bank_account_name || 'â€”'} &nbsp; <strong>Sort:</strong> ${data.bank_sort_code || 'â€”'} &nbsp; <strong>Acc:</strong> ${data.bank_account_number || 'â€”'}<br>
-      <strong>NI:</strong> ${data.ni_number || 'â€”'} &nbsp; <strong>Student loan:</strong> ${data.student_loan || 'â€”'}</p>
+      <p><strong>Account:</strong> ${data.bank_account_name || '—'} &nbsp; <strong>Sort:</strong> ${data.bank_sort_code || '—'} &nbsp; <strong>Acc:</strong> ${data.bank_account_number || '—'}<br>
+      <strong>NI:</strong> ${data.ni_number || '—'} &nbsp; <strong>Student loan:</strong> ${data.student_loan || '—'}</p>
       <h4>4. Right to work</h4>
       <p>${tick(data.rtw_passport)} UK/Irish passport &nbsp; ${tick(data.rtw_share_code)} Share code &nbsp; ${tick(data.rtw_other)} Other<br>
-      Share code: ${data.share_code || 'â€”'}</p>
+      Share code: ${data.share_code || '—'}</p>
       <h4>5. Work and availability</h4>
-      <p><strong>Days:</strong> ${data.days_available || 'â€”'}<br>
-      <strong>Other job:</strong> ${data.other_job || 'â€”'}<br>
+      <p><strong>Days:</strong> ${data.days_available || '—'}<br>
+      <strong>Other job:</strong> ${data.other_job || '—'}<br>
       ${tick(data.hygiene_level2)} Level 2 Food Hygiene &nbsp; ${tick(data.hygiene_will_complete)} Will complete within 2 weeks</p>
       <h4>6. Health note</h4>
-      <p>${data.health_note || 'â€”'}</p>
+      <p>${data.health_note || '—'}</p>
       <h4>7. Photos and video</h4>
       <p>${tick(data.photos_consent)} I understand I may appear in workplace photos and video</p>
       <h4>8. Confirm</h4>
       <p>${tick(data.confirm_true)} Details are true &nbsp; ${tick(data.confirm_contract)} Will confirm contract &nbsp; ${tick(data.confirm_phones)} No personal phones on floor<br>
-      <strong>Signature:</strong> ${data.signature_name || 'â€”'} &nbsp; <strong>Date:</strong> ${data.signature_date || 'â€”'}</p>
+      <strong>Signature:</strong> ${data.signature_name || '—'} &nbsp; <strong>Date:</strong> ${data.signature_date || '—'}</p>
     </div>
   `;
 }
@@ -778,7 +782,7 @@ async function openEmployeeProfile(staffId) {
   }
 
   tab.innerHTML = `
-    <button onclick="loadStaff()" style="margin-bottom:1rem;">â† Back to list</button>
+    <button onclick="loadStaff()" style="margin-bottom:1rem;">← Back to list</button>
     <h2 style="text-align:left; margin:0 0 1.5rem;">${staff.name}</h2>
     ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
     ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
@@ -788,7 +792,7 @@ async function openEmployeeProfile(staffId) {
       <label>Date of Birth<br><input type="date" id="edit-dob" value="${staff.dob || ''}" style="width:100%;"></label>
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
-      <label>Hourly Rate (Â£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;"></label>
+      <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;"></label>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
@@ -939,7 +943,7 @@ function updateRangeDisplay() {
   if (!display) return;
   const range = getDateRange();
   if (range) {
-    display.textContent = `${formatDate(range.start)} â€“ ${formatDate(range.end)}`;
+    display.textContent = `${formatDate(range.start)} – ${formatDate(range.end)}`;
   } else {
     display.textContent = selectedRange === 'custom' ? 'Select start and end dates' : '';
   }
@@ -1033,7 +1037,7 @@ async function sendTimesheetToMember(staffId, name, email) {
   });
   let html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:480px; margin:0 auto; color:#1e293b;">
     <h1 style="font-size:1.4rem;">Your Hours</h1>
-    <p style="color:#64748b;">${formatDate(range.start)} â€“ ${formatDate(range.end)}</p>
+    <p style="color:#64748b;">${formatDate(range.start)} – ${formatDate(range.end)}</p>
     <table style="width:100%; border-collapse:collapse; margin-top:1rem;">`;
   let total = 0;
   Object.keys(byDate).sort().forEach(date => {
@@ -1047,7 +1051,7 @@ async function sendTimesheetToMember(staffId, name, email) {
   html += `<tr><td style="padding:0.8rem 0; font-weight:600;">Total</td><td style="padding:0.8rem 0; text-align:right; font-weight:600;">${total.toFixed(1)} hrs</td></tr></table>
   <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from TimeClock</p></div>`;
   try {
-    await sendEmail(email, `Your hours â€“ ${formatDate(range.start)}`, html);
+    await sendEmail(email, `Your hours – ${formatDate(range.start)}`, html);
     alert('Timesheet sent to ' + name);
   } catch (err) {
     alert('Failed to send: ' + (err.message || err));
@@ -1135,14 +1139,14 @@ async function loadSchedule() {
     .eq('week_start', startDate)
     .maybeSingle();
   const tab = document.getElementById('schedule-tab');
-  const title = `${formatDate(week.start)} â€“ ${formatDate(week.end)}`;
+  const title = `${formatDate(week.start)} – ${formatDate(week.end)}`;
   const publishBtn = published 
     ? `<button disabled style="background:#94a3b8;">Published</button>` 
     : `<button onclick="publishWeek('${startDate}')" style="background:#2563eb;">Publish to member portal</button>`;
   let table = `<div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
-      <button onclick="changeWeek(-1)" style="font-size:1.2rem;">â†</button>
+      <button onclick="changeWeek(-1)" style="font-size:1.2rem;">←</button>
       <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
-      <button onclick="changeWeek(1)" style="font-size:1.2rem;">â†’</button>
+      <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
     <div style="margin-bottom:1rem;">${publishBtn}</div>
     <h4 style="margin:0.5rem 0 1rem;">Rota</h4>
@@ -1178,13 +1182,13 @@ async function loadSchedule() {
     const wage = totalHours * rate;
     grandTotalWage += wage;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
-    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Â£${wage.toFixed(2)}</td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
     table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendShiftsToMember('${s.name}','${s.email || ''}')" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
     table += '</tr>';
   });
   table += `<tr style="background:#f1f5f9; font-weight:700;">
     <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${dayDates.length + 1}">Weekly Total</td>
-    <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">Â£${grandTotalWage.toFixed(2)}</td>
+    <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
     <td></td>
   </tr>`;
   table += '</tbody></table></div>';
@@ -1217,7 +1221,7 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
   const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   let html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:480px; margin:0 auto; color:#1e293b;">
     <h1 style="font-size:1.4rem; margin-bottom:0.25rem;">Your Shifts</h1>
-    <p style="color:#64748b; margin-top:0;">${formatDate(weekStart)} â€“ ${formatDate(weekEnd)}</p>
+    <p style="color:#64748b; margin-top:0;">${formatDate(weekStart)} – ${formatDate(weekEnd)}</p>
     <table style="width:100%; border-collapse:collapse; margin-top:1rem;">`;
   let totalHours = 0;
   for (let i = 0; i < 7; i++) {
@@ -1236,7 +1240,7 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
       </td>
       <td style="padding:0.75rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">
         ${shift?.start_time || shift?.end_time 
-          ? `<div style="font-size:1.05rem;">${shift.start_time || ''} â€“ ${shift.end_time || ''}</div>
+          ? `<div style="font-size:1.05rem;">${shift.start_time || ''} – ${shift.end_time || ''}</div>
              <div style="font-size:0.85rem; color:#64748b;">${hrs.toFixed(1)} hrs</div>`
           : '<div style="color:#94a3b8;">Off</div>'}
       </td>
@@ -1282,7 +1286,7 @@ async function sendShiftsToMember(name, email) {
     .order('date');
   const html = buildShiftEmailHtml(schedules, week.start, week.end);
   try {
-    await sendEmail(email, `Your shifts â€“ ${formatDate(week.start)}`, html);
+    await sendEmail(email, `Your shifts – ${formatDate(week.start)}`, html);
     alert('Shifts sent to ' + name);
   } catch (err) {
     alert('Failed to send: ' + (err.message || err));
@@ -1307,7 +1311,7 @@ async function sendToAllTeam() {
     const myShifts = (schedules || []).filter(sc => sc.name === s.name);
     const html = buildShiftEmailHtml(myShifts, week.start, week.end);
     try {
-      await sendEmail(s.email, `Your shifts â€“ ${formatDate(week.start)}`, html);
+      await sendEmail(s.email, `Your shifts – ${formatDate(week.start)}`, html);
       sent++;
     } catch (err) {
       console.error(err);
