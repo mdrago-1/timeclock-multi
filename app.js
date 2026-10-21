@@ -10,6 +10,23 @@ const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     applyClockStyle();
+
+    // Detect password recovery flow from the URL hash
+    const hash = window.location.hash || '';
+    const isRecovery = hash.includes('type=recovery') || hash.includes('access_token');
+
+    if (isRecovery) {
+      // Supabase will have already set the session from the recovery link
+      const { data: { session } } = await db.auth.getSession();
+      if (session) {
+        currentUser = session.user;
+        showPasswordResetForm();
+        // Clean the hash so a refresh doesn't re-trigger
+        history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+    }
+
     const { data: { session } } = await db.auth.getSession();
     if (session) {
       currentUser = session.user;
@@ -97,6 +114,61 @@ function showAuth() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('auth-screen').classList.add('active');
   updateShopLogo();
+}
+
+function showPasswordResetForm() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  let screen = document.getElementById('password-reset-screen');
+  if (!screen) {
+    screen = document.createElement('div');
+    screen.id = 'password-reset-screen';
+    screen.className = 'screen';
+    screen.innerHTML = `
+      <div class="logo"><div class="clock-icon"></div><h1>Set New Password</h1></div>
+      <form id="new-password-form" style="max-width:320px; margin:1.5rem auto; display:flex; flex-direction:column; gap:1rem;">
+        <input type="password" id="new-password" placeholder="New password (min 8 characters)" minlength="8" required>
+        <input type="password" id="confirm-new-password" placeholder="Confirm new password" minlength="8" required>
+        <button type="submit">Update Password</button>
+        <button type="button" id="cancel-reset">Cancel</button>
+      </form>
+      <p id="reset-status" style="text-align:center; margin-top:1rem;"></p>
+    `;
+    document.getElementById('app').appendChild(screen);
+    document.getElementById('new-password-form').onsubmit = updatePasswordFromReset;
+    document.getElementById('cancel-reset').onclick = () => {
+      db.auth.signOut();
+      showAuth();
+    };
+  }
+  screen.classList.add('active');
+}
+
+async function updatePasswordFromReset(e) {
+  e.preventDefault();
+  const pw = document.getElementById('new-password').value;
+  const confirm = document.getElementById('confirm-new-password').value;
+  const status = document.getElementById('reset-status');
+  if (pw.length < 8) {
+    status.textContent = 'Password must be at least 8 characters';
+    status.style.color = '#dc2626';
+    return;
+  }
+  if (pw !== confirm) {
+    status.textContent = 'Passwords do not match';
+    status.style.color = '#dc2626';
+    return;
+  }
+  const { error } = await db.auth.updateUser({ password: pw });
+  if (error) {
+    status.textContent = error.message;
+    status.style.color = '#dc2626';
+    return;
+  }
+  status.textContent = 'Password updated! Redirecting…';
+  status.style.color = '#16a34a';
+  setTimeout(() => {
+    showKiosk();
+  }, 1200);
 }
 
 function showKiosk() {
