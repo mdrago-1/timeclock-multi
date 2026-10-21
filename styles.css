@@ -69,7 +69,7 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 }
 .retro-time {
   font-family: 'Share Tech Mono', 'Courier New', monospace;
-  font-size: 2.4rem;
+  font-size: 9.6rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #ffffff;
@@ -88,7 +88,7 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
   left: 0;
   right: 0;
   top: 50%;
-  height: 2px;
+  height: 4px;
   background: rgba(0,0,0,0.65);
   transform: translateY(-50%);
   pointer-events: none;
@@ -211,7 +211,7 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
 
   .retro-time {
     order: 2;
-    font-size: 1.9rem;
+    font-size: 7.6rem;
     color: #ffffff;
     margin: 0.15rem 0;
     padding: 0.1rem 0.35rem;
