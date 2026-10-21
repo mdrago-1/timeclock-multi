@@ -69,12 +69,13 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 }
 .retro-time {
   font-family: 'Share Tech Mono', 'Courier New', monospace;
-  font-size: 8.16rem;
+  /* Fluid size: scales smoothly between 2.5rem and 6.5rem based on viewport */
+  font-size: clamp(2.5rem, 12vw, 6.5rem);
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: #ffffff;
   background: #111;
-  padding: 0.15rem 0.45rem;
+  padding: 0.1em 0.35em;
   border-radius: 6px;
   position: relative;
   justify-self: center;
@@ -88,7 +89,7 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
   left: 0;
   right: 0;
   top: 50%;
-  height: 4px;
+  height: 0.06em;
   background: rgba(0,0,0,0.65);
   transform: translateY(-50%);
   pointer-events: none;
@@ -211,10 +212,11 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
 
   .retro-time {
     order: 2;
-    font-size: 6.46rem;
+    /* On mobile the clamp already keeps it reasonable; slight tweak if needed */
+    font-size: clamp(2.2rem, 18vw, 4.5rem);
     color: #ffffff;
     margin: 0.15rem 0;
-    padding: 0.1rem 0.35rem;
+    padding: 0.08em 0.3em;
   }
 
   .pin-container {
