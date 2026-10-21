@@ -142,7 +142,10 @@ function isPaid() {
 }
 
 function showPaywall(feature) {
-  alert(`${feature} is available after purchasing Time Rogue (£19.95 one-off).\n\nClick Create Account on the login screen to purchase.`);
+  const priceNote = feature === 'Scheduling'
+    ? 'Scheduling is available with a Time Rogue subscription (£9.95 per month).'
+    : `${feature} requires a Time Rogue subscription (£9.95 per month).`;
+  alert(`${priceNote}\n\nThe one-off £19.95 purchase unlocks clock in/out and timesheets.\n\nContact support or visit the upgrade page to subscribe.`);
 }
 
 function showAuth() {
