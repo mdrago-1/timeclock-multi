@@ -69,7 +69,7 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 }
 .retro-time {
   font-family: 'Share Tech Mono', 'Courier New', monospace;
-  font-size: 9.6rem;
+  font-size: 8.16rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #ffffff;
@@ -211,7 +211,7 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
 
   .retro-time {
     order: 2;
-    font-size: 7.6rem;
+    font-size: 6.46rem;
     color: #ffffff;
     margin: 0.15rem 0;
     padding: 0.1rem 0.35rem;
