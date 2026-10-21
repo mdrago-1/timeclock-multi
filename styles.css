@@ -329,8 +329,11 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
   font-weight: 500;
   letter-spacing: 0.02em;
   color: #0f172a;
-  background: transparent;
+  background: #ffffff;
   text-shadow: none;
+  border-radius: 12px;
+  padding: 0.15em 0.45em;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 /* Small previews in settings */
