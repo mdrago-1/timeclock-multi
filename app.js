@@ -826,7 +826,12 @@ async function saveKioskCode(e) {
   const code = document.getElementById('kiosk-code').value.trim();
   if (code.length < 4) return alert('Code must be at least 4 characters');
   const { error } = await db.from('profiles').update({ kiosk_code: code }).eq('id', currentUser.id);
-  if (error) return alert(error.message);
+  if (error) {
+    if (error.code === '23505' || /unique|duplicate/i.test(error.message)) {
+      return alert('That kiosk code is already in use by another shop. Please choose a different one.');
+    }
+    return alert(error.message);
+  }
   alert('Kiosk code saved. Staff can use this to re-login the tablet.');
 }
 
