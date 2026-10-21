@@ -12,7 +12,6 @@
 </head>
 <body>
   <div id="app">
-    <!-- Auth Screen -->
     <div id="auth-screen" class="screen active">
       <div class="logo">
         <div class="auth-logo-row">
@@ -27,11 +26,17 @@
         <button type="submit" id="login-btn">Log In</button>
         <button type="button" id="signup-btn">Create Account</button>
         <button type="button" id="forgot-btn">Forgot Password?</button>
+        <button type="button" id="kiosk-login-btn">Kiosk Login</button>
       </form>
+      <div id="kiosk-login-panel" style="display:none; max-width:320px; margin:1.5rem auto; text-align:center;">
+        <input type="password" id="kiosk-code-input" placeholder="Enter kiosk code" style="width:100%; padding:0.6rem; margin-bottom:0.5rem;">
+        <button type="button" id="kiosk-code-submit" style="margin-right:0.5rem;">Unlock Kiosk</button>
+        <button type="button" id="kiosk-code-cancel">Cancel</button>
+        <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
+      </div>
       <p class="note">One-off purchase unlocks basic features for one store.</p>
     </div>
 
-    <!-- Kiosk Screen -->
     <div id="kiosk-screen" class="screen">
       <header class="kiosk-header">
         <div class="kiosk-left">
@@ -63,7 +68,6 @@
       <div id="status-message"></div>
     </div>
 
-    <!-- Admin Password Prompt -->
     <div id="admin-password-screen" class="screen">
       <div class="logo"><div class="clock-icon"></div><h1>Admin Access</h1></div>
       <form id="admin-password-form" style="max-width:320px; margin:0 auto; display:flex; flex-direction:column; gap:1rem;">
@@ -73,7 +77,6 @@
       </form>
     </div>
 
-    <!-- Member Portal Login -->
     <div id="member-login-screen" class="screen">
       <div class="logo"><div class="clock-icon"></div><h1>Member Portal</h1></div>
       <form id="member-login-form" style="max-width:320px; margin:0 auto; display:flex; flex-direction:column; gap:1rem;">
@@ -84,7 +87,6 @@
       </form>
     </div>
 
-    <!-- Member Portal Screen -->
     <div id="member-screen" class="screen">
       <header class="admin-header">
         <div class="logo-small"><div class="clock-icon"></div> Time Rogue</div>
@@ -93,7 +95,6 @@
       <div id="member-content" style="padding:1.5rem;"></div>
     </div>
 
-    <!-- Admin Screen -->
     <div id="admin-screen" class="screen">
       <header class="admin-header">
         <div class="header-left">
