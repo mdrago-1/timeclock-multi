@@ -163,7 +163,31 @@ function showPaywall(feature) {
   const priceNote = feature === 'Scheduling'
     ? 'Scheduling is available with a Time Rogue subscription (£9.95 per month).'
     : `${feature} requires a Time Rogue subscription (£9.95 per month).`;
-  alert(`${priceNote}\n\nThe one-off £19.95 purchase unlocks clock in/out and timesheets.\n\nContact support or visit the upgrade page to subscribe.`);
+
+  // Create a simple upgrade modal
+  let modal = document.getElementById('paywall-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'paywall-modal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; padding:1rem;';
+    modal.innerHTML = `
+      <div style="background:white; border-radius:12px; padding:1.75rem; max-width:420px; width:100%; text-align:center;">
+        <h3 style="margin:0 0 0.75rem; color:#0f172a;">Upgrade to unlock</h3>
+        <p id="paywall-message" style="color:#475569; margin:0 0 1.5rem; line-height:1.5;"></p>
+        <button id="paywall-upgrade" style="width:100%; margin-bottom:0.5rem;">Upgrade now – £9.95/month</button>
+        <button id="paywall-close" type="button" style="width:100%; background:transparent; color:#64748b; border:none;">Not now</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('paywall-close').onclick = () => modal.style.display = 'none';
+    document.getElementById('paywall-upgrade').onclick = () => {
+      // Replace with your real Stripe subscription Payment Link when ready
+      const subUrl = localStorage.getItem('subscription_url') || 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+      window.location.href = subUrl;
+    };
+  }
+  document.getElementById('paywall-message').textContent = priceNote + ' The one-off £19.95 purchase unlocks clock in/out and timesheets.';
+  modal.style.display = 'flex';
 }
 
 function showAuth() {
