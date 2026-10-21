@@ -66,7 +66,9 @@ function setupEventListeners() {
   if (authForm) {
     authForm.onsubmit = (e) => { e.preventDefault(); login(e); return false; };
   }
-  document.getElementById('signup-btn')?.addEventListener('click', signup);
+  document.getElementById('signup-btn')?.addEventListener('click', () => {
+    window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+  });
   document.getElementById('forgot-btn')?.addEventListener('click', forgotPassword);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
   document.getElementById('exit-admin')?.addEventListener('click', showKiosk);
@@ -104,13 +106,28 @@ function setupEventListeners() {
       if (content) content.classList.add('active');
       if (tab.dataset.tab === 'timesheets') loadTimesheets();
       if (tab.dataset.tab === 'staff') loadStaff();
-      if (tab.dataset.tab === 'schedule') loadSchedule();
+      if (tab.dataset.tab === 'schedule') {
+        if (!isPaid()) {
+          showPaywall('Scheduling');
+          // Switch back to staff tab
+          document.querySelector('.tab[data-tab="staff"]').click();
+          return;
+        }
+        loadSchedule();
+      }
       if (tab.dataset.tab === 'settings') loadSettings();
     });
   });
 }
 
-function showAuth() {
+function isPaid() {
+  // Temporary: localStorage flag. Later replace with a profiles.paid column.
+  return localStorage.getItem('paid') === 'true';
+}
+
+function showPaywall(feature) {
+  alert(`${feature} is available after purchasing Time Rogue (£19.95 one-off).\n\nClick Create Account on the login screen to purchase.`);
+}
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('auth-screen').classList.add('active');
   updateShopLogo();
