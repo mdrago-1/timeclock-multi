@@ -70,7 +70,9 @@ function setupEventListeners() {
   document.getElementById('signup-btn')?.addEventListener('click', () => {
     window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
   });
-  document.getElementById('forgot-btn')?.addEventListener('click', forgotPassword);
+  document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
+  document.getElementById('kiosk-code-submit')?.addEventListener('click', kioskLoginWithCode);
+  document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
   document.getElementById('exit-admin')?.addEventListener('click', showKiosk);
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
@@ -594,6 +596,59 @@ async function signup() {
   alert('Account created! Check your email to confirm, then log in.');
 }
 
+function showKioskLoginPanel() {
+  document.getElementById('kiosk-login-panel').style.display = 'block';
+  document.getElementById('kiosk-code-input').value = '';
+  document.getElementById('kiosk-login-status').textContent = '';
+  document.getElementById('kiosk-code-input').focus();
+}
+
+function hideKioskLoginPanel() {
+  document.getElementById('kiosk-login-panel').style.display = 'none';
+}
+
+async function kioskLoginWithCode() {
+  const code = document.getElementById('kiosk-code-input').value.trim();
+  const status = document.getElementById('kiosk-login-status');
+  if (code.length < 4) {
+    status.textContent = 'Enter the kiosk code';
+    status.style.color = '#dc2626';
+    return;
+  }
+  status.textContent = 'Checking…';
+  status.style.color = '#64748b';
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/kiosk-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      status.textContent = data.error || 'Invalid kiosk code';
+      status.style.color = '#dc2626';
+      return;
+    }
+    // Set the session returned by the function
+    const { error } = await db.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token
+    });
+    if (error) {
+      status.textContent = error.message;
+      status.style.color = '#dc2626';
+      return;
+    }
+    currentUser = data.user;
+    await refreshPaidStatus();
+    showKiosk();
+  } catch (err) {
+    status.textContent = 'Could not connect. Try again.';
+    status.style.color = '#dc2626';
+  }
+}
+
 async function forgotPassword() {
   const email = document.getElementById('email').value;
   if (!email) return alert('Enter your email first');
@@ -739,6 +794,12 @@ async function loadSettings() {
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
 
+    <h3 style="margin-top:2.5rem;">Kiosk Re-login Code</h3>
+    <p>Staff can use this code to log the tablet back into the kiosk without the owner email and password. Choose a code of at least 4 characters.</p>
+    <form id="kiosk-code-form" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
+      <input type="text" id="kiosk-code" placeholder="Kiosk code (min 4 characters)" minlength="4" value="${profile?.kiosk_code || ''}" required>
+      <button type="submit">Save Kiosk Code</button>
+    </form>
     <h3 style="margin-top:2.5rem;">Change Admin Password</h3>
     <p>Minimum 8 characters. This password is used to access the admin area from the kiosk.</p>
     <form id="change-admin-pw" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
@@ -749,6 +810,7 @@ async function loadSettings() {
   `;
   document.getElementById('logo-form').onsubmit = uploadLogo;
   document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
+  document.getElementById('kiosk-code-form').onsubmit = saveKioskCode;
   document.querySelectorAll('.clock-style-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       localStorage.setItem('clock_style', btn.dataset.style);
@@ -757,6 +819,15 @@ async function loadSettings() {
     });
   });
   applyClockStyle();
+}
+
+async function saveKioskCode(e) {
+  e.preventDefault();
+  const code = document.getElementById('kiosk-code').value.trim();
+  if (code.length < 4) return alert('Code must be at least 4 characters');
+  const { error } = await db.from('profiles').update({ kiosk_code: code }).eq('id', currentUser.id);
+  if (error) return alert(error.message);
+  alert('Kiosk code saved. Staff can use this to re-login the tablet.');
 }
 
 function changeAdminPassword(e) {
