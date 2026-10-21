@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { data: { session } } = await db.auth.getSession();
     if (session) {
       currentUser = session.user;
+      await refreshPaidStatus();
       showKiosk();
     } else {
       showAuth();
@@ -120,9 +121,24 @@ function setupEventListeners() {
   });
 }
 
+let isUserPaid = false;
+
+async function refreshPaidStatus() {
+  if (!currentUser) { isUserPaid = false; return; }
+  const { data } = await db.from('profiles').select('paid').eq('id', currentUser.id).single();
+  isUserPaid = !!data?.paid;
+  // Also check pending payments by email
+  if (!isUserPaid && currentUser.email) {
+    const { data: pending } = await db.from('pending_payments').select('paid').eq('email', currentUser.email.toLowerCase()).maybeSingle();
+    if (pending?.paid) {
+      await db.from('profiles').update({ paid: true }).eq('id', currentUser.id);
+      isUserPaid = true;
+    }
+  }
+}
+
 function isPaid() {
-  // Temporary: localStorage flag. Later replace with a profiles.paid column.
-  return localStorage.getItem('paid') === 'true';
+  return isUserPaid;
 }
 
 function showPaywall(feature) {
@@ -537,6 +553,7 @@ async function login(e) {
       return;
     }
     currentUser = data.user;
+    await refreshPaidStatus();
     showKiosk();
   } catch (err) {
     console.error('Login error:', err);
@@ -846,6 +863,10 @@ function renderStarterFormMirror(data, completedAt) {
 }
 
 async function openEmployeeProfile(staffId) {
+  if (!isPaid()) {
+    showPaywall('Employee details, starter form and documents');
+    return;
+  }
   const { data: staff } = await db.from('staff').select('*').eq('id', staffId).single();
   const { data: docs } = await db.from('documents').select('*').eq('staff_id', staffId).order('uploaded_at', { ascending: false });
   const [first = '', ...rest] = (staff.name || '').split(' ');
