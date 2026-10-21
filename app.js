@@ -128,6 +128,8 @@ function isPaid() {
 function showPaywall(feature) {
   alert(`${feature} is available after purchasing Time Rogue (£19.95 one-off).\n\nClick Create Account on the login screen to purchase.`);
 }
+
+function showAuth() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('auth-screen').classList.add('active');
   updateShopLogo();
