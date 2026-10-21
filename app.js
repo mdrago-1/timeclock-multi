@@ -735,14 +735,17 @@ async function updateShopLogo() {
   const logoUrl = profile?.logo_url;
   document.querySelectorAll('.shop-logo-placeholder').forEach(el => {
     if (logoUrl) {
-      const maxH = el.classList.contains('auth-shop-logo') ? '56px' : '36px';
-      const maxW = el.classList.contains('auth-shop-logo') ? '120px' : '100px';
-      el.innerHTML = `<img src="${logoUrl}" alt="Shop logo" style="max-height:${maxH}; max-width:${maxW}; object-fit:contain;">`;
+      const h = el.classList.contains('auth-shop-logo') ? '96px' : '64px';
+      const w = el.classList.contains('auth-shop-logo') ? '280px' : '180px';
+      el.innerHTML = `<img src="${logoUrl}" alt="Shop logo" style="height:${h}; width:${w}; object-fit:contain; object-position:center;">`;
       el.style.background = 'transparent';
-      el.style.borderRadius = '8px';
+      el.style.width = w;
+      el.style.height = h;
     } else {
       el.textContent = 'Shop';
       el.style.background = '#f59e0b';
+      el.style.width = el.classList.contains('auth-shop-logo') ? '280px' : '180px';
+      el.style.height = el.classList.contains('auth-shop-logo') ? '96px' : '64px';
     }
   });
 }
@@ -788,7 +791,7 @@ async function loadSettings() {
 
     <h3>Business Logo</h3>
     <p>Upload your logo to appear next to the Time Rogue logo. Max size 2 MB.</p>
-    ${profile?.logo_url ? `<img src="${profile.logo_url}" style="max-height:60px; margin:1rem 0;">` : '<p>No logo uploaded yet.</p>'}
+    ${profile?.logo_url ? `<img src="${profile.logo_url}" style="height:64px; width:180px; object-fit:contain; margin:1rem 0; border:1px solid #e2e8f0;">` : '<p>No logo uploaded yet.</p>'}
     <form id="logo-form" style="margin-top:1rem;">
       <input type="file" id="logo-file" accept="image/*" required>
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
