@@ -67,23 +67,28 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
   font-size: 0.6rem;
   flex-shrink: 0;
 }
+
+/* Clock base */
 .retro-time {
-  font-family: 'Share Tech Mono', 'Courier New', monospace;
-  /* Fluid size: scales smoothly between 2.5rem and 6.5rem based on viewport */
   font-size: clamp(2.5rem, 12vw, 6.5rem);
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #ffffff;
-  background: #111;
   padding: 0.1em 0.35em;
   border-radius: 6px;
   position: relative;
   justify-self: center;
   line-height: 1;
   white-space: nowrap;
+}
+
+/* Style 1: Split-flap (existing) */
+.retro-time.clock-flap {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  color: #ffffff;
+  background: #111;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 6px rgba(0,0,0,0.35);
 }
-.retro-time::after {
+.retro-time.clock-flap::after {
   content: '';
   position: absolute;
   left: 0;
@@ -94,6 +99,28 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
   transform: translateY(-50%);
   pointer-events: none;
 }
+
+/* Style 2: Neon */
+.retro-time.clock-neon {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  color: #39ff14;
+  background: #0a0a0a;
+  text-shadow: 0 0 8px #39ff14, 0 0 18px #39ff14;
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.4), inset 0 0 8px rgba(57, 255, 20, 0.15);
+}
+.retro-time.clock-neon::after { display: none; }
+
+/* Style 3: Modern */
+.retro-time.clock-modern {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.retro-time.clock-modern::after { display: none; }
 
 /* PIN Screen */
 .pin-container { text-align: center; padding: 1.5rem 1rem; }
@@ -161,7 +188,7 @@ button { background: #2563eb; color: white; border: none; cursor: pointer; }
 
 table, th, td { font-family: Inter, system-ui, sans-serif; }
 
-/* Mobile kiosk layout – fits one screen, no scroll */
+/* Mobile kiosk layout */
 @media (max-width: 640px) {
   #kiosk-screen {
     display: flex;
@@ -212,9 +239,7 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
 
   .retro-time {
     order: 2;
-    /* On mobile the clamp already keeps it reasonable; slight tweak if needed */
     font-size: clamp(2.2rem, 18vw, 4.5rem);
-    color: #ffffff;
     margin: 0.15rem 0;
     padding: 0.08em 0.3em;
   }
