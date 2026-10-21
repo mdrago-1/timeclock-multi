@@ -677,7 +677,7 @@ async function loadSettings() {
     </div>
 
     <h3>Business Logo</h3>
-    <p>Upload your logo to appear next to the TimeClock logo. Max size 2 MB.</p>
+    <p>Upload your logo to appear next to the Time Rogue logo. Max size 2 MB.</p>
     ${profile?.logo_url ? `<img src="${profile.logo_url}" style="max-height:60px; margin:1rem 0;">` : '<p>No logo uploaded yet.</p>'}
     <form id="logo-form" style="margin-top:1rem;">
       <input type="file" id="logo-file" accept="image/*" required>
@@ -1121,7 +1121,7 @@ async function sendTimesheetToMember(staffId, name, email) {
     </tr>`;
   });
   html += `<tr><td style="padding:0.8rem 0; font-weight:600;">Total</td><td style="padding:0.8rem 0; text-align:right; font-weight:600;">${total.toFixed(1)} hrs</td></tr></table>
-  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from TimeClock</p></div>`;
+  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from Time Rogue</p></div>`;
   try {
     await sendEmail(email, `Your hours – ${formatDate(range.start)}`, html);
     alert('Timesheet sent to ' + name);
@@ -1322,7 +1322,7 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
     <td style="padding:1rem 0; font-weight:600;">Total</td>
     <td style="padding:1rem 0; text-align:right; font-weight:600;">${totalHours.toFixed(1)} hrs</td>
   </tr></table>
-  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from TimeClock</p>
+  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from Time Rogue</p>
   </div>`;
   return html;
 }
