@@ -1086,7 +1086,7 @@ async function loadStaff() {
   tab.innerHTML = `
     <h3>Employees</h3>
     <input type="text" id="staff-search" placeholder="Search employees…" style="width:100%; max-width:400px; margin-bottom:1rem; padding:0.6rem;">
-    <button type="button" id="show-add-staff" style="margin-bottom:1rem;">Add Team Member</button>
+    <button type="button" id="show-add-staff" style="margin-bottom:1rem;">Add Employee</button>
     <form id="add-staff" style="display:none; flex-direction:column; gap:0.5rem; max-width:400px; margin-bottom:1rem;">
       <input type="text" id="staff-first" placeholder="First Name" required>
       <input type="text" id="staff-last" placeholder="Last Name" required>
@@ -1095,12 +1095,14 @@ async function loadStaff() {
       <button type="button" id="cancel-add-staff" style="background:transparent; color:#64748b;">Cancel</button>
     </form>
     <div id="staff-list" style="margin-top:1rem;"></div>
+    <button type="button" id="show-archived" style="margin-top:2rem; background:transparent; color:#64748b;">Archived Employees</button>
   `;
   document.getElementById('add-staff').onsubmit = addStaff;
   document.getElementById('show-add-staff').onclick = () => {
     document.getElementById('add-staff').style.display = 'flex';
     document.getElementById('show-add-staff').style.display = 'none';
   };
+  document.getElementById('show-archived')?.addEventListener('click', loadArchived);
   document.getElementById('cancel-add-staff').onclick = () => {
     document.getElementById('add-staff').style.display = 'none';
     document.getElementById('show-add-staff').style.display = 'inline-block';
@@ -1126,6 +1128,29 @@ async function addStaff(e) {
   if (error) return alert(error.message);
   loadStaff();
 }
+
+async function loadArchived() {
+  const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', true).order('name');
+  const tab = document.getElementById('staff-tab');
+  tab.innerHTML = `
+    <h3>Archived Employees</h3>
+    <button type="button" onclick="loadStaff()" style="margin-bottom:1rem;">← Back to employees</button>
+    <div id="archived-list">
+      ${staff?.map(s => `
+        <div class="staff-item" style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0;">
+          <span>${s.name}</span>
+          <button onclick="reinstateStaff('${s.id}')" style="margin-left:auto;">Reinstate</button>
+        </div>
+      `).join('') || '<p>No archived employees</p>'}
+    </div>
+  `;
+}
+async function reinstateStaff(id) {
+  await db.from('staff').update({ archived: false }).eq('id', id);
+  loadArchived();
+}
+window.reinstateStaff = reinstateStaff;
+window.loadStaff = loadStaff;
 
 async function archiveStaff(id) {
   if (!confirm('Archive this employee? They will be hidden from the main list but all records are kept.')) return;
