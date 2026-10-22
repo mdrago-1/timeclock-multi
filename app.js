@@ -1012,9 +1012,19 @@ async function emailStatutory() {
 async function loadSettings() {
   const tab = document.getElementById('settings-tab');
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+  document.getElementById('save-holiday-year')?.addEventListener('click', async () => {
+    const val = document.getElementById('holiday-year-start').value || '01-01';
+    await db.from('profiles').update({ holiday_year_start: val }).eq('id', currentUser.id);
+    alert('Holiday year start saved');
+  });
   const currentStyle = localStorage.getItem('clock_style') || 'plain';
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   tab.innerHTML = `
+    <h3>Holiday year</h3>
+    <label>Starts on (MM-DD)<br>
+      <input type="text" id="holiday-year-start" value="${profile?.holiday_year_start || '01-01'}" style="width:120px;">
+    </label>
+    <button type="button" id="save-holiday-year" style="margin:0.5rem 0 1.5rem;">Save</button>
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
@@ -1663,15 +1673,19 @@ async function loadSchedule() {
     let totalHours = 0;
     table += `<tr data-name="${s.name}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
-      const shift = (schedules || []).find(sc => sc.name === s.name && sc.date === date);
-      const start = shift?.start_time || '';
-      const end = shift?.end_time || '';
-      totalHours += hoursBetween(start, end);
+      const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
       table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;">
-        <div class="shift-slot">
-          <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:70px; font-size:0.8rem;">
-          <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:70px; font-size:0.8rem; margin-top:2px;">
-        </div>
+        <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">`;
+      if (dayShifts.length === 0) dayShifts.push({});
+      dayShifts.forEach(shift => {
+        const start = shift.start_time || '';
+        const end = shift.end_time || '';
+        table += `<div class="shift-slot" style="display:inline-block;">
+          <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:58px; font-size:0.75rem;">
+          <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:58px; font-size:0.75rem; margin-top:2px;">
+        </div>`;
+      });
+      table += `</div>
         <button type="button" class="add-shift" data-date="${date}" style="margin-top:4px; padding:0 6px; font-size:0.9rem; line-height:1.2;">+</button>
       </td>`;
     });
@@ -1706,12 +1720,14 @@ async function loadSchedule() {
       const date = btn.dataset.date;
       const extra = document.createElement('div');
       extra.className = 'shift-slot';
-      extra.style.marginTop = '6px';
+      extra.style.display = 'inline-block';
+      extra.style.marginLeft = '4px';
       extra.innerHTML = `
-        <input type="time" class="shift-start" data-date="${date}" style="width:70px; font-size:0.8rem;">
-        <br><input type="time" class="shift-end" data-date="${date}" style="width:70px; font-size:0.8rem; margin-top:2px;">
+        <input type="time" class="shift-start" data-date="${date}" style="width:58px; font-size:0.75rem;">
+        <br><input type="time" class="shift-end" data-date="${date}" style="width:58px; font-size:0.75rem; margin-top:2px;">
       `;
-      cell.insertBefore(extra, btn);
+      const flex = btn.previousElementSibling;
+      if (flex) flex.appendChild(extra);
     };
   });
 }
