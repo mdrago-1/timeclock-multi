@@ -1012,13 +1012,6 @@ async function emailStatutory() {
 async function loadSettings() {
   const tab = document.getElementById('settings-tab');
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
-  document.getElementById('save-holiday-year')?.addEventListener('click', async () => {
-    const val = document.getElementById('holiday-year-start').value.trim() || '01-01';
-    const { error } = await db.from('profiles').update({ holiday_year_start: val }).eq('id', currentUser.id);
-    if (error) return alert(error.message);
-    alert('Holiday year start saved');
-    loadSettings();
-  });
   const currentStyle = localStorage.getItem('clock_style') || 'plain';
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   tab.innerHTML = `
@@ -1065,6 +1058,13 @@ async function loadSettings() {
       <button type="submit">Update Admin Password</button>
     </form>
   `;
+  document.getElementById('save-holiday-year').onclick = async () => {
+    const val = document.getElementById('holiday-year-start').value.trim() || '01-01';
+    const { error } = await db.from('profiles').update({ holiday_year_start: val }).eq('id', currentUser.id);
+    if (error) return alert('Could not save: ' + error.message);
+    alert('Holiday year start saved');
+    loadSettings();
+  };
   document.getElementById('logo-form').onsubmit = uploadLogo;
   document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
   document.getElementById('kiosk-code-form').onsubmit = saveKioskCode;
