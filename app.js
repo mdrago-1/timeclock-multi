@@ -906,59 +906,55 @@ async function loadHoliday() {
   const tab = document.getElementById('holiday-tab');
   if (!tab) return;
   const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false).order('name');
-  tab.innerHTML = `
-    <h3>Holiday</h3>
-    <select id="holiday-employee" style="margin:0.5rem 0 1rem; padding:0.5rem;">
-      <option value="">Select employee</option>
-      ${(staff || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
-    </select>
-    <div id="holiday-detail"></div>
-  `;
-  document.getElementById('holiday-employee').onchange = () => showHolidayDetail(document.getElementById('holiday-employee').value);
-}
-
-async function showHolidayDetail(staffId) {
-  if (!staffId) return;
-  const { data: s } = await db.from('staff').select('*').eq('id', staffId).single();
-  const type = s.worker_type === 'hourly' || s.worker_type === 'irregular' ? 'hourly' : 'salaried';
-  const startDate = s.starter_form_data?.agreed_start_date;
-  const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
-  let accrued = type === 'salaried' ? Math.round((months / 12) * 28 * 10) / 10 : 0;
-  const taken = s.holiday_taken || 0;
-  const booked = s.holiday_booked || [];
-  document.getElementById('holiday-detail').innerHTML = `
-    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1rem; max-width:480px;">
-      <strong>${s.name}</strong> <span style="color:#64748b;">(${type})</span>
-      <p>Hours worked this holiday year: <strong>—</strong> (linked when timesheet data is available)</p>
-      <p>Accrued: <strong>${accrued}</strong> days</p>
-      <p>Taken: <strong>${taken}</strong> days</p>
-      <p>Remaining: <strong>${Math.max(0, accrued - taken)}</strong> days</p>
-      <h4 style="margin:1rem 0 0.5rem;">Booked holiday</h4>
-      <div id="booked-list">${booked.map(d => `<div>${d} <button type="button" onclick="removeHoliday('${staffId}','${d}')" style="font-size:0.75rem;">Remove</button></div>`).join('') || '<p style="color:#94a3b8;">None booked</p>'}</div>
-      <div style="margin-top:0.75rem;">
-        <input type="date" id="new-holiday-date">
-        <button type="button" onclick="addHoliday('${staffId}')">Add booked day</button>
+  let html = '<h3>Holiday</h3>';
+  for (const s of staff || []) {
+    const type = s.worker_type === 'hourly' || s.worker_type === 'irregular' ? 'hourly' : 'salaried';
+    const { data: clocks } = await db.from('clocks').select('timestamp').eq('staff_id', s.id);
+    const hours = clocks?.length ? (clocks.length * 0.5) : 0; // rough until full calc
+    const startDate = s.starter_form_data?.agreed_start_date;
+    const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
+    const accrued = type === 'salaried' ? Math.round((months / 12) * 28 * 10) / 10 : Math.round(hours * 0.1207 / 8 * 10) / 10;
+    const taken = s.holiday_taken || 0;
+    const periods = s.holiday_booked || [];
+    html += `
+      <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin:0.75rem 0; max-width:520px;">
+        <strong>${s.name}</strong> <span style="color:#64748b; font-size:0.85rem;">(${type})</span>
+        <div style="margin-top:0.5rem; font-size:0.9rem;">
+          <div>Hours worked this holiday year: <strong>${hours.toFixed(1)}</strong></div>
+          <div>Accrued: <strong>${accrued}</strong> days</div>
+          <div>Taken: <strong>${taken}</strong> days</div>
+          <div>Remaining: <strong>${Math.max(0, accrued - taken)}</strong> days</div>
+        </div>
+        <h4 style="margin:0.75rem 0 0.4rem; font-size:0.95rem;">Booked periods</h4>
+        <div>${periods.map((p, i) => `<div>${p.start} → ${p.end} <button type="button" onclick="removeHolidayPeriod('${s.id}',${i})" style="font-size:0.75rem;">Remove</button></div>`).join('') || '<span style="color:#94a3b8;">None booked</span>'}</div>
+        <div style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
+          <input type="date" id="hol-start-${s.id}" style="padding:0.3rem;">
+          <input type="date" id="hol-end-${s.id}" style="padding:0.3rem;">
+          <button type="button" onclick="addHolidayPeriod('${s.id}')">Add booked period</button>
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  }
+  tab.innerHTML = html || '<p>No employees</p>';
 }
 
-async function addHoliday(staffId) {
-  const date = document.getElementById('new-holiday-date').value;
-  if (!date) return alert('Pick a date');
+async function addHolidayPeriod(staffId) {
+  const start = document.getElementById('hol-start-' + staffId).value;
+  const end = document.getElementById('hol-end-' + staffId).value;
+  if (!start || !end) return alert('Pick a start and end date');
   const { data: s } = await db.from('staff').select('holiday_booked').eq('id', staffId).single();
-  const booked = [...(s.holiday_booked || []), date];
-  await db.from('staff').update({ holiday_booked: booked }).eq('id', staffId);
-  showHolidayDetail(staffId);
+  const periods = [...(s.holiday_booked || []), { start, end }];
+  await db.from('staff').update({ holiday_booked: periods }).eq('id', staffId);
+  loadHoliday();
 }
-async function removeHoliday(staffId, date) {
+async function removeHolidayPeriod(staffId, index) {
   const { data: s } = await db.from('staff').select('holiday_booked').eq('id', staffId).single();
-  const booked = (s.holiday_booked || []).filter(d => d !== date);
-  await db.from('staff').update({ holiday_booked: booked }).eq('id', staffId);
-  showHolidayDetail(staffId);
+  const periods = (s.holiday_booked || []).filter((_, i) => i !== index);
+  await db.from('staff').update({ holiday_booked: periods }).eq('id', staffId);
+  loadHoliday();
 }
-window.addHoliday = addHoliday;
-window.removeHoliday = removeHoliday;
+window.addHolidayPeriod = addHolidayPeriod;
+window.removeHolidayPeriod = removeHolidayPeriod;
 
 async function loadStatutory() {
   const tab = document.getElementById('statutory-tab');
@@ -1711,7 +1707,7 @@ async function loadSchedule() {
     table += `<tr data-name="${s.name}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
       const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
-      const isHoliday = (s.holiday_booked || []).includes(date);
+      const isHoliday = (s.holiday_booked || []).some(p => date >= p.start && date <= p.end);
       table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center; ${isHoliday ? 'background:#fef3c7;' : ''}">
         ${isHoliday ? '<div style="font-size:0.7rem; color:#92400e; margin-bottom:2px;">Holiday</div>' : ''}
         <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">`;
