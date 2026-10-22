@@ -928,9 +928,9 @@ async function loadStatutory() {
     <h4>Staff</h4>
     <div id="statutory-staff-list">
       ${(staff || []).map(s => `
-        <div style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid #f1f5f9;">
-          <input type="checkbox" class="stat-staff" value="${s.id}">
-          <span>${s.name}</span>
+        <div style="display:flex; align-items:center; gap:1rem; padding:0.85rem 0.5rem; border-bottom:1px solid #e2e8f0; margin-bottom:0.25rem;">
+          <input type="checkbox" class="stat-staff" value="${s.id}" style="width:22px; height:22px; accent-color:#0f172a;">
+          <span style="font-size:1rem;">${s.name}</span>
           <span style="margin-left:auto; font-size:0.8rem; color:${s.statutory_received ? '#16a34a' : '#94a3b8'};">
             ${s.statutory_received ? 'Documents received' : '—'}
           </span>
