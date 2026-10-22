@@ -15,7 +15,7 @@
     <div id="auth-screen" class="screen active">
       <div class="logo">
         <div class="auth-logo-row">
-          <div class="shop-logo-placeholder auth-shop-logo">Shop</div>
+          <!-- shop logo slot left blank on home -->
           <div class="logo-small"><img src="time-rogue-logo.png" alt="Time Rogue" style="height:96px; width:280px; object-fit:contain; display:block; margin:0.5rem auto;"></div>
         </div>
         <img src="time-rogue-logo-white.png" alt="Time Rogue" style="height:64px; width:180px; object-fit:contain; object-position:left center;">
@@ -35,6 +35,91 @@
         <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
       </div>
       <p class="note">One-off purchase unlocks basic features for one store.</p>
+      <div id="preview-carousel" style="max-width:640px; margin:2.5rem auto; padding:0 1rem;">
+        <h2 style="text-align:center; color:#0f172a; margin-bottom:1rem;">See Time Rogue in action</h2>
+        <div class="carousel" style="position:relative; overflow:hidden; border-radius:12px; background:#f1f5f9;">
+          <div class="carousel-track" style="display:flex; transition:transform 0.4s ease;">
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">Clock-in Keypad</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Staff enter their 4-digit PIN to clock in or out</p>
+                <div style="margin-top:1rem; font-size:2rem; letter-spacing:0.3em;">● ● ● ●</div>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.4rem; max-width:180px; margin:1rem auto 0; font-size:0.85rem;">
+                  <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>C</span><span>0</span><span>✓</span>
+                </div>
+              </div>
+            </div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">Schedule</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Weekly shifts at a glance</p>
+                <table style="width:100%; margin-top:0.75rem; font-size:0.8rem; border-collapse:collapse;">
+                  <tr style="background:#f8fafc;"><th>Name</th><th>Mon</th><th>Tue</th><th>Wed</th></tr>
+                  <tr><td>Alex</td><td>09-17</td><td>09-17</td><td>—</td></tr>
+                  <tr><td>Sam</td><td>—</td><td>12-20</td><td>12-20</td></tr>
+                  <tr><td>Jordan</td><td>10-18</td><td>—</td><td>10-18</td></tr>
+                </table>
+              </div>
+            </div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">Timesheets</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Historic hours, easy to search</p>
+                <table style="width:100%; margin-top:0.75rem; font-size:0.8rem; border-collapse:collapse;">
+                  <tr style="background:#f8fafc;"><th>Name</th><th>Date</th><th>Hours</th></tr>
+                  <tr><td>Alex</td><td>20 Oct</td><td>7.5</td></tr>
+                  <tr><td>Sam</td><td>20 Oct</td><td>8.0</td></tr>
+                  <tr><td>Jordan</td><td>19 Oct</td><td>6.5</td></tr>
+                </table>
+              </div>
+            </div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">New Starter Form</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Employees complete details once, locked after submit</p>
+                <div style="text-align:left; font-size:0.85rem; margin-top:0.75rem; color:#475569;">
+                  <div>Name, DOB, address</div>
+                  <div>Emergency contact</div>
+                  <div>Bank & NI details</div>
+                  <div>Right to work</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" id="carousel-prev" style="position:absolute; left:0.5rem; top:50%; transform:translateY(-50%); background:white; border-radius:50%; width:36px; height:36px; padding:0;">‹</button>
+          <button type="button" id="carousel-next" style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); background:white; border-radius:50%; width:36px; height:36px; padding:0;">›</button>
+        </div>
+        <div id="carousel-dots" style="text-align:center; margin-top:0.75rem;"></div>
+      </div>
+
+      <div id="pricing" style="max-width:640px; margin:2rem auto 3rem; padding:0 1rem;">
+        <h2 style="text-align:center; color:#0f172a; margin-bottom:1.25rem;">Pricing</h2>
+        <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
+          <div style="flex:1; min-width:260px; background:white; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
+            <h3 style="margin:0 0 0.5rem;">One-off</h3>
+            <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£19.95</p>
+            <p style="color:#64748b; font-size:0.9rem; margin:0.5rem 0 1rem;">Unlocks clock in/out for up to 20 staff, historic hours, and Settings.</p>
+            <ul style="text-align:left; font-size:0.85rem; color:#475569; padding-left:1.2rem; margin:0;">
+              <li>Staff PIN clock in & out</li>
+              <li>Timesheets & hours search</li>
+              <li>Shop logo & clock style</li>
+            </ul>
+          </div>
+          <div style="flex:1; min-width:260px; background:#0f172a; color:white; border-radius:12px; padding:1.5rem;">
+            <h3 style="margin:0 0 0.5rem;">Full subscription</h3>
+            <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£9.95<span style="font-size:1rem; font-weight:400;">/month</span></p>
+            <p style="color:#cbd5e1; font-size:0.9rem; margin:0.5rem 0 1rem;">Everything in the one-off, plus scheduling, starter forms and documents.</p>
+            <ul style="text-align:left; font-size:0.85rem; color:#e2e8f0; padding-left:1.2rem; margin:0;">
+              <li>Weekly schedule</li>
+              <li>New starter forms</li>
+              <li>Document uploads</li>
+              <li>Full employee profiles</li>
+            </ul>
+            <p style="font-size:0.8rem; color:#94a3b8; margin-top:1rem;">Upgrade within 30 days of the one-off purchase and your first month is free.</p>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <div id="kiosk-screen" class="screen">
@@ -119,5 +204,30 @@
   </div>
   <script src="config.js"></script>
   <script src="app.js"></script>
+
+<script>
+(function(){
+  const track = document.querySelector('.carousel-track');
+  if (!track) return;
+  const slides = track.children.length;
+  let i = 0;
+  const dots = document.getElementById('carousel-dots');
+  for (let d = 0; d < slides; d++) {
+    const dot = document.createElement('span');
+    dot.style.cssText = 'display:inline-block; width:8px; height:8px; border-radius:50%; background:#cbd5e1; margin:0 4px; cursor:pointer;';
+    dot.onclick = () => go(d);
+    dots.appendChild(dot);
+  }
+  function go(n) {
+    i = (n + slides) % slides;
+    track.style.transform = 'translateX(-' + (i * 100) + '%)';
+    Array.from(dots.children).forEach((d, idx) => d.style.background = idx === i ? '#0f172a' : '#cbd5e1');
+  }
+  document.getElementById('carousel-next').onclick = () => go(i + 1);
+  document.getElementById('carousel-prev').onclick = () => go(i - 1);
+  go(0);
+  setInterval(() => go(i + 1), 5000);
+})();
+</script>
 </body>
 </html>
