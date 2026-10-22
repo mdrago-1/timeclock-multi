@@ -142,6 +142,7 @@ function setupEventListeners() {
         loadSchedule();
       }
       if (tab.dataset.tab === 'settings') loadSettings();
+      if (tab.dataset.tab === 'statutory') loadStatutory();
     });
   });
 }
@@ -900,6 +901,83 @@ async function applyClockStyle() {
   });
 }
 
+async function loadStatutory() {
+  const tab = document.getElementById('statutory-tab');
+  if (!tab) return;
+  const { data: docs } = await db.from('statutory_docs').select('*').eq('owner_id', currentUser.id);
+  const wop = docs?.find(d => d.doc_type === 'written_statement');
+  const handbook = docs?.find(d => d.doc_type === 'handbook');
+  const { data: staff } = await db.from('staff').select('id, name, starter_form_completed, statutory_received').eq('owner_id', currentUser.id);
+  tab.innerHTML = `
+    <h3>Statutory documents</h3>
+    <p style="color:#64748b;">Upload once, then attach or email to staff.</p>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; margin:1rem 0;">
+      <div style="flex:1; min-width:240px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem;">
+        <strong>Written Statement of Particulars</strong>
+        <p style="font-size:0.85rem; color:#64748b;">${wop ? 'Uploaded' : 'Not yet uploaded'}</p>
+        <input type="file" id="upload-wop" accept=".pdf" style="margin:0.5rem 0;">
+        <button type="button" onclick="uploadStatutory('written_statement')">Upload</button>
+      </div>
+      <div style="flex:1; min-width:240px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem;">
+        <strong>Employee Handbook</strong>
+        <p style="font-size:0.85rem; color:#64748b;">${handbook ? 'Uploaded' : 'Not yet uploaded'}</p>
+        <input type="file" id="upload-handbook" accept=".pdf" style="margin:0.5rem 0;">
+        <button type="button" onclick="uploadStatutory('handbook')">Upload</button>
+      </div>
+    </div>
+    <h4>Staff</h4>
+    <div id="statutory-staff-list">
+      ${(staff || []).map(s => `
+        <div style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid #f1f5f9;">
+          <input type="checkbox" class="stat-staff" value="${s.id}">
+          <span>${s.name}</span>
+          <span style="margin-left:auto; font-size:0.8rem; color:${s.statutory_received ? '#16a34a' : '#94a3b8'};">
+            ${s.statutory_received ? 'Documents received' : '—'}
+          </span>
+        </div>
+      `).join('')}
+    </div>
+    <div style="margin-top:1rem;">
+      <button type="button" onclick="attachStatutory()">Attach to selected profiles</button>
+      <button type="button" onclick="emailStatutory()" style="margin-left:0.5rem;">Email to selected</button>
+    </div>
+  `;
+}
+
+async function uploadStatutory(type) {
+  const input = document.getElementById(type === 'written_statement' ? 'upload-wop' : 'upload-handbook');
+  const file = input?.files[0];
+  if (!file) return alert('Choose a PDF first');
+  const path = `${currentUser.id}/${type}-${Date.now()}.pdf`;
+  const { error } = await db.storage.from('documents').upload(path, file);
+  if (error) return alert(error.message);
+  await db.from('statutory_docs').upsert({
+    owner_id: currentUser.id,
+    doc_type: type,
+    file_path: path,
+    uploaded_at: new Date().toISOString()
+  }, { onConflict: 'owner_id,doc_type' });
+  alert('Uploaded');
+  loadStatutory();
+}
+
+async function attachStatutory() {
+  const ids = [...document.querySelectorAll('.stat-staff:checked')].map(c => c.value);
+  if (!ids.length) return alert('Select at least one staff member');
+  await db.from('staff').update({ statutory_received: true, statutory_received_at: new Date().toISOString() }).in('id', ids);
+  alert('Marked as received on selected profiles');
+  loadStatutory();
+}
+
+async function emailStatutory() {
+  const ids = [...document.querySelectorAll('.stat-staff:checked')].map(c => c.value);
+  if (!ids.length) return alert('Select at least one staff member');
+  // Placeholder – real email via Edge Function can be added later
+  await db.from('staff').update({ statutory_received: true, statutory_received_at: new Date().toISOString() }).in('id', ids);
+  alert('Marked as emailed (confirmation recorded). Actual email sending can be wired to Resend next.');
+  loadStatutory();
+}
+
 async function loadSettings() {
   const tab = document.getElementById('settings-tab');
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
@@ -1128,6 +1206,7 @@ async function openEmployeeProfile(staffId) {
     <button onclick="loadStaff()" style="margin-bottom:1rem;">← Back to list</button>
     <h2 style="text-align:left; margin:0 0 1.5rem;">${staff.name}</h2>
     ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
+    ${staff.statutory_received ? '<p style="color:#16a34a;">Statutory documents received</p>' : '<p style="color:#94a3b8;">Statutory documents not yet sent</p>'}
     ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
     <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
       <label>First Name<br><input type="text" id="edit-first" value="${first}" style="width:100%;"></label>
