@@ -910,13 +910,16 @@ async function loadHoliday() {
   const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false);
   let html = `<h3>Holiday</h3><p style="color:#64748b;">Holiday year starts: ${yearStart}</p>`;
   for (const s of staff || []) {
-    const type = s.worker_type || 'salaried';
+    const type = s.worker_type === 'hourly' || s.worker_type === 'irregular' ? 'hourly' : 'salaried';
     const startDate = s.starter_form_data?.agreed_start_date;
     const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
     let accrued = 28;
-    if (type === 'salaried') accrued = Math.round((months / 12) * 28 * 10) / 10;
-    else if (type === 'regular') accrued = Math.min(28, 5.6 * 5); // placeholder days/week
-    else accrued = 0; // irregular needs hours data
+    if (type === 'salaried') {
+      accrued = Math.round((months / 12) * 28 * 10) / 10;
+    } else {
+      // Hourly: 12.07% of hours worked in holiday year (placeholder 0 until hours data is linked)
+      accrued = 0;
+    }
     const taken = s.holiday_taken || 0;
     html += `
       <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin:0.75rem 0;">
@@ -1202,7 +1205,7 @@ async function archiveStaff(id) {
 }
 window.archiveStaff = archiveStaff;
 async function saveWorkerType(staffId) {
-  const type = document.getElementById('worker-type').value;
+  const type = document.getElementById('worker-type-' + staffId).value;
   await db.from('staff').update({ worker_type: type }).eq('id', staffId);
   alert('Worker type saved');
 }
@@ -1291,6 +1294,13 @@ async function openEmployeeProfile(staffId) {
     <h2 style="text-align:left; margin:0 0 1.5rem;">${staff.name}</h2>
     ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
     ${staff.statutory_received ? '<p style="color:#16a34a;">Statutory documents received</p>' : '<p style="color:#94a3b8;">Statutory documents not yet sent</p>'}
+    <label style="display:block; margin:0.75rem 0;">Worker type
+      <select id="worker-type-${staffId}" style="margin-left:0.5rem;">
+        <option value="salaried" ${staff.worker_type==='salaried'?'selected':''}>Salaried</option>
+        <option value="hourly" ${staff.worker_type==='hourly'||staff.worker_type==='irregular'?'selected':''}>Hourly</option>
+      </select>
+    </label>
+    <button type="button" onclick="saveWorkerType('${staffId}')">Save worker type</button>
     ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
     <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
       <label>First Name<br><input type="text" id="edit-first" value="${first}" style="width:100%;"></label>
