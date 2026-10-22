@@ -1681,8 +1681,8 @@ async function loadSchedule() {
         const start = shift.start_time || '';
         const end = shift.end_time || '';
         table += `<div class="shift-slot" style="display:inline-block;">
-          <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:58px; font-size:0.75rem;">
-          <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:58px; font-size:0.75rem; margin-top:2px;">
+          <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:72px; font-size:0.75rem;">
+          <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:72px; font-size:0.75rem; margin-top:2px;">
         </div>`;
       });
       table += `</div>
@@ -1723,8 +1723,8 @@ async function loadSchedule() {
       extra.style.display = 'inline-block';
       extra.style.marginLeft = '4px';
       extra.innerHTML = `
-        <input type="time" class="shift-start" data-date="${date}" style="width:58px; font-size:0.75rem;">
-        <br><input type="time" class="shift-end" data-date="${date}" style="width:58px; font-size:0.75rem; margin-top:2px;">
+        <input type="time" class="shift-start" data-date="${date}" style="width:72px; font-size:0.75rem;">
+        <br><input type="time" class="shift-end" data-date="${date}" style="width:72px; font-size:0.75rem; margin-top:2px;">
       `;
       const flex = btn.previousElementSibling;
       if (flex) flex.appendChild(extra);
