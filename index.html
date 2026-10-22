@@ -12,30 +12,22 @@
 </head>
 <body>
   <div id="app">
-    <div id="auth-screen" class="screen active">
-      <div class="logo">
-        <div class="auth-logo-row">
-          <!-- shop logo slot left blank on home -->
-          <div class="logo-small"><img src="time-rogue-logo.png" alt="Time Rogue" style="height:96px; width:280px; object-fit:contain; display:block; margin:0.5rem auto;"></div>
+        <div id="auth-screen" class="screen active">
+      <header style="display:flex; justify-content:space-between; align-items:center; padding:1rem 1.5rem; background:#0f172a;">
+        <img src="time-rogue-logo-white.png" alt="Time Rogue" style="height:48px; width:auto;">
+        <div style="display:flex; gap:0.5rem;">
+          <button type="button" id="login-btn" style="background:white; color:#0f172a;">Log In</button>
+          <button type="button" id="signup-btn" style="background:white; color:#0f172a;">Create Account</button>
+          <button type="button" id="forgot-btn" style="background:transparent; color:white; border:1px solid #334155;">Forgot Password?</button>
+          <button type="button" id="kiosk-login-btn" style="background:transparent; color:white; border:1px solid #334155;">Kiosk Login</button>
         </div>
-        <img src="time-rogue-logo-white.png" alt="Time Rogue" style="height:64px; width:180px; object-fit:contain; object-position:left center;">
+      </header>
+
+      <div style="text-align:center; padding:2rem 1rem 1rem;">
+        <img src="time-rogue-logo.png" alt="Time Rogue" style="height:120px; width:auto;">
       </div>
-      <form id="auth-form" onsubmit="return false;">
-        <input type="email" id="email" placeholder="Email" required>
-        <input type="password" id="password" placeholder="Password" required>
-        <button type="submit" id="login-btn">Log In</button>
-        <button type="button" id="signup-btn">Create Account</button>
-        <button type="button" id="forgot-btn">Forgot Password?</button>
-        <button type="button" id="kiosk-login-btn">Kiosk Login</button>
-      </form>
-      <div id="kiosk-login-panel" style="display:none; max-width:320px; margin:1.5rem auto; text-align:center;">
-        <input type="password" id="kiosk-code-input" placeholder="Enter kiosk code" style="width:100%; padding:0.6rem; margin-bottom:0.5rem;">
-        <button type="button" id="kiosk-code-submit" style="margin-right:0.5rem;">Unlock Kiosk</button>
-        <button type="button" id="kiosk-code-cancel">Cancel</button>
-        <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
-      </div>
-      <p class="note">One-off purchase unlocks basic features for one store.</p>
-      <div id="preview-carousel" style="max-width:640px; margin:2.5rem auto; padding:0 1rem;">
+
+      <div id="preview-carousel" style="max-width:720px; margin:1rem auto 2rem; padding:0 1rem;">
         <h2 style="text-align:center; color:#0f172a; margin-bottom:1rem;">See Time Rogue in action</h2>
         <div class="carousel" style="position:relative; overflow:hidden; border-radius:12px; background:#f1f5f9;">
           <div class="carousel-track" style="display:flex; transition:transform 0.4s ease;">
@@ -92,34 +84,35 @@
         <div id="carousel-dots" style="text-align:center; margin-top:0.75rem;"></div>
       </div>
 
-      <div id="pricing" style="max-width:640px; margin:2rem auto 3rem; padding:0 1rem;">
-        <h2 style="text-align:center; color:#0f172a; margin-bottom:1.25rem;">Pricing</h2>
-        <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
-          <div style="flex:1; min-width:260px; background:white; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
-            <h3 style="margin:0 0 0.5rem;">One-off</h3>
-            <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£19.95</p>
-            <p style="color:#64748b; font-size:0.9rem; margin:0.5rem 0 1rem;">For one site only. Unlocks clock in/out for up to 20 staff, historic hours, and Settings.</p>
-            <ul style="text-align:left; font-size:0.85rem; color:#475569; padding-left:1.2rem; margin:0;">
-              <li>Staff PIN clock in & out</li>
-              <li>Timesheets & hours search</li>
-              <li>Shop logo & clock style</li>
-            </ul>
-          </div>
-          <div style="flex:1; min-width:260px; background:#0f172a; color:white; border-radius:12px; padding:1.5rem;">
-            <h3 style="margin:0 0 0.5rem;">Full subscription</h3>
-            <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£9.95<span style="font-size:1rem; font-weight:400;">/month</span></p>
-            <p style="color:#cbd5e1; font-size:0.9rem; margin:0.5rem 0 1rem;">For one site only. Everything in the one-off, plus scheduling, starter forms and documents.</p>
-            <ul style="text-align:left; font-size:0.85rem; color:#e2e8f0; padding-left:1.2rem; margin:0;">
-              <li>Weekly schedule</li>
-              <li>New starter forms</li>
-              <li>Document uploads</li>
-              <li>Full employee profiles</li>
-            </ul>
-            <p style="font-size:0.8rem; color:#94a3b8; margin-top:1rem;">Upgrade within 30 days of the one-off purchase and your first month is free.</p>
-          </div>
+      <!-- Login modal -->
+      <div id="login-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:1.5rem; max-width:340px; width:100%;">
+          <h3 style="margin:0 0 1rem; text-align:center;">Log In</h3>
+          <form id="auth-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:0.75rem;">
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <button type="submit">Log In</button>
+            <button type="button" id="login-cancel" style="background:transparent; color:#64748b;">Cancel</button>
+          </form>
         </div>
       </div>
 
+      <!-- Forgot password modal -->
+      <div id="forgot-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:1.5rem; max-width:340px; width:100%;">
+          <h3 style="margin:0 0 1rem; text-align:center;">Reset Password</h3>
+          <input type="email" id="forgot-email" placeholder="Email" style="width:100%; margin-bottom:0.75rem;">
+          <button type="button" id="forgot-submit" style="width:100%;">Send reset link</button>
+          <button type="button" id="forgot-cancel" style="width:100%; background:transparent; color:#64748b; margin-top:0.5rem;">Cancel</button>
+        </div>
+      </div>
+
+      <div id="kiosk-login-panel" style="display:none; max-width:320px; margin:1.5rem auto; text-align:center;">
+        <input type="password" id="kiosk-code-input" placeholder="Enter kiosk code" style="width:100%; padding:0.6rem; margin-bottom:0.5rem;">
+        <button type="button" id="kiosk-code-submit" style="margin-right:0.5rem;">Unlock Kiosk</button>
+        <button type="button" id="kiosk-code-cancel">Cancel</button>
+        <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
+      </div>
     </div>
 
     <div id="kiosk-screen" class="screen">
