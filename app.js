@@ -1711,19 +1711,24 @@ async function loadSchedule() {
       table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center; ${isHoliday ? 'background:#fef3c7;' : ''}">
         ${isHoliday ? '<div style="font-size:0.7rem; color:#92400e; margin-bottom:2px;">Holiday</div>' : ''}
         <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">`;
-      if (dayShifts.length === 0) dayShifts.push({});
-      dayShifts.forEach(shift => {
-        const start = shift.start_time || '';
-        const end = shift.end_time || '';
-        table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
-          <div style="font-size:0.65rem; color:#94a3b8;">Shift ${dayShifts.length > 1 ? (shift === dayShifts[0] ? '1' : '2') : ''}</div>
-          <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:72px; font-size:0.75rem;">
-          <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:72px; font-size:0.75rem; margin-top:2px;">
-        </div>`;
-      });
-      table += `</div>
-        <button type="button" class="add-shift" data-date="${date}" style="margin-top:4px; padding:0 6px; font-size:0.9rem; line-height:1.2;">+</button>
-      </td>`;
+      if (!isHoliday) {
+        if (dayShifts.length === 0) dayShifts.push({});
+        dayShifts.forEach(shift => {
+          const start = shift.start_time || '';
+          const end = shift.end_time || '';
+          totalHours += hoursBetween(start, end);
+          table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
+            <div style="font-size:0.65rem; color:#94a3b8;">Shift</div>
+            <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:72px; font-size:0.75rem;">
+            <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:72px; font-size:0.75rem; margin-top:2px;">
+          </div>`;
+        });
+        table += `</div>
+          <button type="button" class="add-shift" data-date="${date}" style="margin-top:4px; padding:0 6px; font-size:0.9rem; line-height:1.2;">+</button>`;
+      } else {
+        table += `</div>`;
+      }
+      table += `</td>`;
     });
     const rate = parseFloat(s.hourly_rate) || 0;
     const wage = totalHours * rate;
