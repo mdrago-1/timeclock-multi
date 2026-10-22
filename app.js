@@ -182,7 +182,7 @@ function showPaywall(feature) {
     document.getElementById('paywall-close').onclick = () => modal.style.display = 'none';
     document.getElementById('paywall-upgrade').onclick = () => {
       // Replace with your real Stripe subscription Payment Link when ready
-      const subUrl = localStorage.getItem('subscription_url') || 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+      const subUrl = localStorage.getItem('subscription_url') || 'https://buy.stripe.com/test_9B64gz3AO5rNgH696vdfG01';
       window.location.href = subUrl;
     };
   }
