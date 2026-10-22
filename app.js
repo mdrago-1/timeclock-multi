@@ -1741,7 +1741,7 @@ async function loadSchedule() {
   let grandTotalWage = 0;
   (staff || []).forEach(s => {
     let totalHours = 0;
-    table += `<tr data-name="${s.name}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
+    table += `<tr data-name="${s.name}" data-rate="${parseFloat(s.hourly_rate) || 0}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
       const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
       const isHoliday = (s.holiday_booked || []).some(p => date >= p.start && date <= p.end);
@@ -1815,8 +1815,37 @@ async function loadSchedule() {
   });
   // Auto-save when any existing time changes
   tab.querySelectorAll('.shift-start, .shift-end').forEach(inp => {
-    inp.onchange = () => saveScheduleTable();
+    inp.onchange = () => {
+      updateScheduleTotals();
+      saveScheduleTable();
+    };
   });
+}
+
+function updateScheduleTotals() {
+  const rows = document.querySelectorAll('#schedule-tab tbody tr[data-name]');
+  let grand = 0;
+  rows.forEach(row => {
+    let hours = 0;
+    const starts = row.querySelectorAll('.shift-start');
+    const ends = row.querySelectorAll('.shift-end');
+    starts.forEach((inp, i) => {
+      hours += hoursBetween(inp.value, ends[i]?.value);
+    });
+    const rate = parseFloat(row.dataset.rate) || 0;
+    const wage = hours * rate;
+    grand += wage;
+    const cells = row.querySelectorAll('td');
+    if (cells.length >= 2) {
+      cells[cells.length - 3].textContent = hours.toFixed(1);
+      cells[cells.length - 2].textContent = '£' + wage.toFixed(2);
+    }
+  });
+  const totalRow = document.querySelector('#schedule-tab tbody tr:last-child');
+  if (totalRow) {
+    const tds = totalRow.querySelectorAll('td');
+    if (tds.length >= 2) tds[tds.length - 2].textContent = '£' + grand.toFixed(2);
+  }
 }
 
 async function publishWeek(weekStart) {
