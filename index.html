@@ -35,14 +35,56 @@
         <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
       </div>
       <p class="note">One-off purchase unlocks basic features for one store.</p>
-      <div id="preview-carousel" style="max-width:720px; margin:2.5rem auto; padding:0 1rem;">
+      <div id="preview-carousel" style="max-width:640px; margin:2.5rem auto; padding:0 1rem;">
         <h2 style="text-align:center; color:#0f172a; margin-bottom:1rem;">See Time Rogue in action</h2>
         <div class="carousel" style="position:relative; overflow:hidden; border-radius:12px; background:#f1f5f9;">
           <div class="carousel-track" style="display:flex; transition:transform 0.4s ease;">
-            <div class="carousel-slide" style="min-width:100%;"><img src="preview-keypad.png" alt="Clock-in keypad" style="width:100%; display:block;"></div>
-            <div class="carousel-slide" style="min-width:100%;"><img src="preview-schedule.png" alt="Schedule" style="width:100%; display:block;"></div>
-            <div class="carousel-slide" style="min-width:100%;"><img src="preview-timesheets.png" alt="Timesheets" style="width:100%; display:block;"></div>
-            <div class="carousel-slide" style="min-width:100%;"><img src="preview-starter.png" alt="New starter form" style="width:100%; display:block;"></div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">Clock-in Keypad</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Staff enter their 4-digit PIN to clock in or out</p>
+                <div style="margin-top:1rem; font-size:2rem; letter-spacing:0.3em;">● ● ● ●</div>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.4rem; max-width:180px; margin:1rem auto 0; font-size:0.85rem;">
+                  <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>C</span><span>0</span><span>✓</span>
+                </div>
+              </div>
+            </div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">Schedule</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Weekly shifts at a glance</p>
+                <table style="width:100%; margin-top:0.75rem; font-size:0.8rem; border-collapse:collapse;">
+                  <tr style="background:#f8fafc;"><th>Name</th><th>Mon</th><th>Tue</th><th>Wed</th></tr>
+                  <tr><td>Alex</td><td>09-17</td><td>09-17</td><td>—</td></tr>
+                  <tr><td>Sam</td><td>—</td><td>12-20</td><td>12-20</td></tr>
+                  <tr><td>Jordan</td><td>10-18</td><td>—</td><td>10-18</td></tr>
+                </table>
+              </div>
+            </div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">Timesheets</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Historic hours, easy to search</p>
+                <table style="width:100%; margin-top:0.75rem; font-size:0.8rem; border-collapse:collapse;">
+                  <tr style="background:#f8fafc;"><th>Name</th><th>Date</th><th>Hours</th></tr>
+                  <tr><td>Alex</td><td>20 Oct</td><td>7.5</td></tr>
+                  <tr><td>Sam</td><td>20 Oct</td><td>8.0</td></tr>
+                  <tr><td>Jordan</td><td>19 Oct</td><td>6.5</td></tr>
+                </table>
+              </div>
+            </div>
+            <div class="carousel-slide" style="min-width:100%; padding:1.5rem; text-align:center;">
+              <div style="background:white; border-radius:8px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="margin:0 0 0.5rem;">New Starter Form</h3>
+                <p style="color:#64748b; font-size:0.9rem;">Employees complete details once, locked after submit</p>
+                <div style="text-align:left; font-size:0.85rem; margin-top:0.75rem; color:#475569;">
+                  <div>Name, DOB, address</div>
+                  <div>Emergency contact</div>
+                  <div>Bank & NI details</div>
+                  <div>Right to work</div>
+                </div>
+              </div>
+            </div>
           </div>
           <button type="button" id="carousel-prev" style="position:absolute; left:0.5rem; top:50%; transform:translateY(-50%); background:white; border-radius:50%; width:36px; height:36px; padding:0;">‹</button>
           <button type="button" id="carousel-next" style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); background:white; border-radius:50%; width:36px; height:36px; padding:0;">›</button>
@@ -158,7 +200,12 @@
       <div id="schedule-tab" class="tab-content"></div>
       <div id="timesheets-tab" class="tab-content"></div>
       <div id="settings-tab" class="tab-content"></div>
-    </div>
+    
+      <div style="text-align:center; margin:2rem 0 1rem; font-size:0.85rem; color:#64748b;">
+        <a href="#terms" style="color:#2563eb; margin:0 0.5rem;">Terms</a>
+        <a href="#refunds" style="color:#2563eb; margin:0 0.5rem;">Refund Policy</a>
+      </div>
+</div>
   </div>
   <script src="config.js"></script>
   <script src="app.js"></script>
@@ -187,5 +234,20 @@
   setInterval(() => go(i + 1), 5000);
 })();
 </script>
+
+<div id="terms" style="display:none; max-width:640px; margin:2rem auto; padding:1.5rem; background:white; border-radius:12px;">
+  <h2>Terms and Conditions</h2>
+  <p>Time Rogue is provided by the operator of timerogue.app. By creating an account or making a purchase you agree to these terms.</p>
+  <p><strong>Essential (£19.95 one-off)</strong> unlocks clock in/out, timesheets and settings for one site only.</p>
+  <p><strong>Subscription (£9.95/month)</strong> unlocks scheduling, starter forms, documents and full employee profiles for one site only. Access ends if the subscription is cancelled or payment fails.</p>
+  <p>You must not share accounts or use the service for unlawful purposes. We may suspend access for abuse or non-payment.</p>
+  <p>These terms are governed by the laws of England and Wales.</p>
+</div>
+<div id="refunds" style="display:none; max-width:640px; margin:2rem auto; padding:1.5rem; background:white; border-radius:12px;">
+  <h2>Refund Policy</h2>
+  <p>The £19.95 Essential purchase is non-refundable once the account has been used to clock in or out.</p>
+  <p>Subscription payments are non-refundable for the current billing period. You can cancel at any time; access continues until the end of the paid period, then drops back to Essential features only.</p>
+  <p>If you believe a charge was made in error, contact us within 14 days.</p>
+</div>
 </body>
 </html>
