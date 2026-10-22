@@ -935,7 +935,7 @@ async function loadHoliday() {
   const tab = document.getElementById('holiday-tab');
   if (!tab) return;
   const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false).order('name');
-  let html = '<h3>Holiday</h3><table style="width:100%; border-collapse:collapse; margin-top:1rem;"><thead><tr style="background:#f8fafc;"><th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e2e8f0;">Name</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Type</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Hours</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Accrued</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Taken</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Remaining</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;"></th></tr></thead><tbody>';
+  let html = '<h3>Holiday</h3><table style="width:100%; border-collapse:collapse; margin-top:1rem;"><thead><tr style="background:#f8fafc;"><th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e2e8f0;">Name</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Type</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Hours</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Accrued</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Booked</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Taken</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Remaining</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;"></th></tr></thead><tbody>';
   for (const s of staff || []) {
     const type = s.worker_type === 'hourly' || s.worker_type === 'irregular' ? 'hourly' : 'salaried';
     const { data: clocks } = await db.from('clocks').select('timestamp').eq('staff_id', s.id);
@@ -944,11 +944,21 @@ async function loadHoliday() {
     const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
     const accrued = type === 'salaried' ? Math.round((months / 12) * 28 * 10) / 10 : Math.round(hours * 0.1207 / 8 * 10) / 10;
     const taken = s.holiday_taken || 0;
+    const periods = s.holiday_booked || [];
+    let bookedDays = 0;
+    periods.forEach(p => {
+      if (p.start && p.end) {
+        const d1 = new Date(p.start);
+        const d2 = new Date(p.end);
+        bookedDays += Math.round((d2 - d1) / (1000*60*60*24)) + 1;
+      }
+    });
     html += `<tr style="border-bottom:1px solid #f1f5f9;">
       <td style="padding:0.6rem;">${s.name}</td>
       <td style="padding:0.6rem; text-align:center;">${type}</td>
       <td style="padding:0.6rem; text-align:center;">${hours.toFixed(1)}</td>
       <td style="padding:0.6rem; text-align:center;">${accrued}</td>
+      <td style="padding:0.6rem; text-align:center;">${bookedDays}</td>
       <td style="padding:0.6rem; text-align:center;">${taken}</td>
       <td style="padding:0.6rem; text-align:center;">${Math.max(0, accrued - taken)}</td>
       <td style="padding:0.6rem; text-align:right;"><button type="button" onclick="openHolidayDetail('${s.id}')">Details</button></td>
