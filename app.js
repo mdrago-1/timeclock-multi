@@ -1081,7 +1081,7 @@ async function uploadLogo(e) {
 }
 
 async function loadStaff() {
-  const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).order('name');
+  const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false).order('name');
   const tab = document.getElementById('staff-tab');
   tab.innerHTML = `
     <h3>Employees</h3>
@@ -1110,7 +1110,7 @@ async function loadStaff() {
       ${s.photo_url ? `<img src="${s.photo_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;margin-right:0.5rem;">` : '<div style="width:40px;height:40px;border-radius:50%;background:#e2e8f0;margin-right:0.5rem;"></div>'}
       <span>${s.name}</span>
       ${s.starter_form_completed ? '<span style="color:#16a34a; font-size:0.8rem; margin-left:0.5rem;">Form done</span>' : ''}
-      <button onclick="event.stopPropagation(); deleteStaff('${s.id}')">Delete</button>
+      <button onclick="event.stopPropagation(); archiveStaff('${s.id}')">Archive</button>
     </div>
   `).join('') || '<p>No employees yet</p>';
 }
@@ -1126,12 +1126,12 @@ async function addStaff(e) {
   loadStaff();
 }
 
-async function deleteStaff(id) {
-  if (!confirm('Delete this employee?')) return;
-  await db.from('staff').delete().eq('id', id);
+async function archiveStaff(id) {
+  if (!confirm('Archive this employee? They will be hidden from the main list but all records are kept.')) return;
+  await db.from('staff').update({ archived: true }).eq('id', id);
   loadStaff();
 }
-window.deleteStaff = deleteStaff;
+window.archiveStaff = archiveStaff;
 window.openEmployeeProfile = openEmployeeProfile;
 
 async function resetStarterForm(staffId) {
