@@ -68,7 +68,13 @@ function setupEventListeners() {
     authForm.onsubmit = (e) => { e.preventDefault(); login(e); return false; };
   }
   document.getElementById('signup-btn')?.addEventListener('click', () => {
-    window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+    // Show both payment options
+    const choice = confirm('Choose your plan:\n\nOK = Essential (£19.95 one-off)\nCancel = Full subscription (£9.95/month)');
+    if (choice) {
+      window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+    } else {
+      window.location.href = 'https://buy.stripe.com/test_9B64gz3AO5rNgH696vdfG01';
+    }
   });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('kiosk-code-submit')?.addEventListener('click', kioskLoginWithCode);
