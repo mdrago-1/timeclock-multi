@@ -1264,7 +1264,11 @@ async function saveWorkerType(staffId) {
   const type = document.getElementById('worker-type-' + staffId).value;
   await db.from('staff').update({ worker_type: type }).eq('id', staffId);
 }
-window.saveWorkerType = saveWorkerType;
+async function saveHourlyRate(staffId) {
+  const rate = parseFloat(document.getElementById('edit-rate').value) || 0;
+  await db.from('staff').update({ hourly_rate: rate }).eq('id', staffId);
+}
+window.saveHourlyRate = saveHourlyRate;
 
 async function resetStarterForm(staffId) {
   if (!(await appConfirm('Allow this employee to fill out the starter form again? Previous answers will be kept in the record.'))) return;
@@ -1362,7 +1366,7 @@ async function openEmployeeProfile(staffId) {
       <label>Date of Birth<br><input type="date" id="edit-dob" value="${staff.dob || ''}" style="width:100%;"></label>
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
-      <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;"></label>
+      <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;" onchange="saveHourlyRate('${staffId}')"></label>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
