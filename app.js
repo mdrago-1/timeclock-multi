@@ -906,37 +906,43 @@ async function loadHoliday() {
   const tab = document.getElementById('holiday-tab');
   if (!tab) return;
   const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false).order('name');
-  let html = '<h3>Holiday</h3>';
+  let html = '<h3>Holiday</h3><table style="width:100%; border-collapse:collapse; margin-top:1rem;"><thead><tr style="background:#f8fafc;"><th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e2e8f0;">Name</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Type</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Hours</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Accrued</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Taken</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Remaining</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;"></th></tr></thead><tbody>';
   for (const s of staff || []) {
     const type = s.worker_type === 'hourly' || s.worker_type === 'irregular' ? 'hourly' : 'salaried';
     const { data: clocks } = await db.from('clocks').select('timestamp').eq('staff_id', s.id);
-    const hours = clocks?.length ? (clocks.length * 0.5) : 0; // rough until full calc
+    const hours = clocks?.length ? (clocks.length * 0.5) : 0;
     const startDate = s.starter_form_data?.agreed_start_date;
     const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
     const accrued = type === 'salaried' ? Math.round((months / 12) * 28 * 10) / 10 : Math.round(hours * 0.1207 / 8 * 10) / 10;
     const taken = s.holiday_taken || 0;
-    const periods = s.holiday_booked || [];
-    html += `
-      <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin:0.75rem 0; max-width:520px;">
-        <strong>${s.name}</strong> <span style="color:#64748b; font-size:0.85rem;">(${type})</span>
-        <div style="margin-top:0.5rem; font-size:0.9rem;">
-          <div>Hours worked this holiday year: <strong>${hours.toFixed(1)}</strong></div>
-          <div>Accrued: <strong>${accrued}</strong> days</div>
-          <div>Taken: <strong>${taken}</strong> days</div>
-          <div>Remaining: <strong>${Math.max(0, accrued - taken)}</strong> days</div>
-        </div>
-        <h4 style="margin:0.75rem 0 0.4rem; font-size:0.95rem;">Booked periods</h4>
-        <div>${periods.map((p, i) => `<div>${p.start} → ${p.end} <button type="button" onclick="removeHolidayPeriod('${s.id}',${i})" style="font-size:0.75rem;">Remove</button></div>`).join('') || '<span style="color:#94a3b8;">None booked</span>'}</div>
-        <div style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
-          <input type="date" id="hol-start-${s.id}" style="padding:0.3rem;">
-          <input type="date" id="hol-end-${s.id}" style="padding:0.3rem;">
-          <button type="button" onclick="addHolidayPeriod('${s.id}')">Add booked period</button>
-        </div>
-      </div>
-    `;
+    html += `<tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:0.6rem;">${s.name}</td>
+      <td style="padding:0.6rem; text-align:center;">${type}</td>
+      <td style="padding:0.6rem; text-align:center;">${hours.toFixed(1)}</td>
+      <td style="padding:0.6rem; text-align:center;">${accrued}</td>
+      <td style="padding:0.6rem; text-align:center;">${taken}</td>
+      <td style="padding:0.6rem; text-align:center;">${Math.max(0, accrued - taken)}</td>
+      <td style="padding:0.6rem; text-align:right;"><button type="button" onclick="openHolidayDetail('${s.id}')">Details</button></td>
+    </tr>`;
   }
+  html += '</tbody></table><div id="holiday-detail" style="margin-top:1.5rem;"></div>';
   tab.innerHTML = html || '<p>No employees</p>';
 }
+
+async function openHolidayDetail(staffId) {
+  const { data: s } = await db.from('staff').select('*').eq('id', staffId).single();
+  const periods = s.holiday_booked || [];
+  document.getElementById('holiday-detail').innerHTML = `
+    <h4>${s.name} – Booked periods</h4>
+    <div>${periods.map((p, i) => `<div>${p.start} → ${p.end} <button type="button" onclick="removeHolidayPeriod('${s.id}',${i})" style="font-size:0.75rem;">Remove</button></div>`).join('') || '<span style="color:#94a3b8;">None booked</span>'}</div>
+    <div style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
+      <input type="date" id="hol-start-${s.id}" style="padding:0.3rem;">
+      <input type="date" id="hol-end-${s.id}" style="padding:0.3rem;">
+      <button type="button" onclick="addHolidayPeriod('${s.id}')">Add booked period</button>
+    </div>
+  `;
+}
+window.openHolidayDetail = openHolidayDetail;
 
 async function addHolidayPeriod(staffId) {
   const start = document.getElementById('hol-start-' + staffId).value;
