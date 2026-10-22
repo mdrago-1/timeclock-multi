@@ -1668,8 +1668,11 @@ async function loadSchedule() {
       const end = shift?.end_time || '';
       totalHours += hoursBetween(start, end);
       table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;">
-        <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:70px; font-size:0.8rem;">
-        <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:70px; font-size:0.8rem; margin-top:2px;">
+        <div class="shift-slot">
+          <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:70px; font-size:0.8rem;">
+          <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:70px; font-size:0.8rem; margin-top:2px;">
+        </div>
+        <button type="button" class="add-shift" data-date="${date}" style="margin-top:4px; padding:0 6px; font-size:0.9rem; line-height:1.2;">+</button>
       </td>`;
     });
     const rate = parseFloat(s.hourly_rate) || 0;
@@ -1697,6 +1700,20 @@ async function loadSchedule() {
     <button onclick="uploadSchedule()">Upload Schedule</button>
   </div>`;
   tab.innerHTML = table;
+  tab.querySelectorAll('.add-shift').forEach(btn => {
+    btn.onclick = () => {
+      const cell = btn.parentElement;
+      const date = btn.dataset.date;
+      const extra = document.createElement('div');
+      extra.className = 'shift-slot';
+      extra.style.marginTop = '6px';
+      extra.innerHTML = `
+        <input type="time" class="shift-start" data-date="${date}" style="width:70px; font-size:0.8rem;">
+        <br><input type="time" class="shift-end" data-date="${date}" style="width:70px; font-size:0.8rem; margin-top:2px;">
+      `;
+      cell.insertBefore(extra, btn);
+    };
+  });
 }
 
 async function publishWeek(weekStart) {
