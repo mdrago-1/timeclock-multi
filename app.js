@@ -1680,7 +1680,8 @@ async function loadSchedule() {
       dayShifts.forEach(shift => {
         const start = shift.start_time || '';
         const end = shift.end_time || '';
-        table += `<div class="shift-slot" style="display:inline-block;">
+        table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
+          <div style="font-size:0.65rem; color:#94a3b8;">Shift ${dayShifts.length > 1 ? (shift === dayShifts[0] ? '1' : '2') : ''}</div>
           <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:72px; font-size:0.75rem;">
           <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:72px; font-size:0.75rem; margin-top:2px;">
         </div>`;
@@ -1699,13 +1700,14 @@ async function loadSchedule() {
   });
   table += `<tr style="background:#f1f5f9; font-weight:700;">
     <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${dayDates.length + 1}">Weekly Total</td>
+    <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;"></td>
     <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
     <td></td>
   </tr>`;
   table += '</tbody></table></div>';
   table += `<div style="margin-bottom:1.5rem;">
-    <button onclick="saveScheduleTable()" style="background:#16a34a;">Save Timetable</button>
-    <button onclick="sendToAllTeam()" style="margin-left:0.5rem;">Send to all team</button>
+    <button onclick="saveScheduleTable()" style="background:#0f172a; color:white;">Save Schedule</button>
+    <button onclick="sendToAllTeam()" style="margin-left:0.5rem; background:#0f172a; color:white;">Send to member portal</button>
   </div>`;
   table += `<div style="border-top:1px solid #e2e8f0; padding-top:1.5rem;">
     <p>Upload a CSV with columns: name, date (YYYY-MM-DD), start_time, end_time 
@@ -1859,7 +1861,7 @@ async function saveScheduleTable() {
       const date = input.dataset.date;
       const start = input.value;
       const end = row.querySelectorAll('.shift-end')[i].value;
-      if (start || end) {
+      if (start && end && start !== '00:00' && end !== '00:00') {
         toInsert.push({ owner_id: currentUser.id, name, date, start_time: start, end_time: end });
       }
     });
