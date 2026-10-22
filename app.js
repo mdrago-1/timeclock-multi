@@ -67,15 +67,7 @@ function setupEventListeners() {
   if (authForm) {
     authForm.onsubmit = (e) => { e.preventDefault(); login(e); return false; };
   }
-  document.getElementById('signup-btn')?.addEventListener('click', () => {
-    // Show both payment options
-    const choice = confirm('Choose your plan:\n\nOK = Essential (£19.95 one-off)\nCancel = Full subscription (£9.95/month)');
-    if (choice) {
-      window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
-    } else {
-      window.location.href = 'https://buy.stripe.com/test_9B64gz3AO5rNgH696vdfG01';
-    }
-  });
+  document.getElementById('signup-btn')?.addEventListener('click', showPlanChoice);
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('kiosk-code-submit')?.addEventListener('click', kioskLoginWithCode);
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
@@ -163,6 +155,55 @@ function isPaid() {
 
 function hasSubscription() {
   return !!window._subscriptionActive;
+}
+
+function showPlanChoice() {
+  let modal = document.getElementById('plan-choice-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'plan-choice-modal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; padding:1rem;';
+    modal.innerHTML = `
+      <div style="background:#f8fafc; border-radius:12px; padding:1.5rem; max-width:680px; width:100%;">
+        <h3 style="text-align:center; margin:0 0 1.25rem; color:#0f172a;">Choose your plan</h3>
+        <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
+          <div style="flex:1; min-width:260px; background:white; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
+            <h3 style="margin:0 0 0.5rem;">Essential</h3>
+            <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£19.95</p>
+            <p style="color:#64748b; font-size:0.9rem; margin:0.5rem 0 1rem;">One-off. For one site only.</p>
+            <ul style="text-align:left; font-size:0.85rem; color:#475569; padding-left:1.2rem; margin:0 0 1rem;">
+              <li>Staff PIN clock in & out</li>
+              <li>Timesheets & hours search</li>
+              <li>Shop logo & clock style</li>
+            </ul>
+            <button type="button" id="choose-essential" style="width:100%;">Choose Essential</button>
+          </div>
+          <div style="flex:1; min-width:260px; background:#0f172a; color:white; border-radius:12px; padding:1.5rem;">
+            <h3 style="margin:0 0 0.5rem;">Full</h3>
+            <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£9.95<span style="font-size:1rem; font-weight:400;">/month</span></p>
+            <p style="color:#cbd5e1; font-size:0.9rem; margin:0.5rem 0 1rem;">For one site only. Everything in Essential plus:</p>
+            <ul style="text-align:left; font-size:0.85rem; color:#e2e8f0; padding-left:1.2rem; margin:0 0 1rem;">
+              <li>Weekly schedule</li>
+              <li>New starter forms</li>
+              <li>Document uploads</li>
+              <li>Full employee profiles</li>
+            </ul>
+            <button type="button" id="choose-full" style="width:100%; background:white; color:#0f172a;">Choose Full</button>
+          </div>
+        </div>
+        <button type="button" id="plan-cancel" style="display:block; margin:1.25rem auto 0; background:transparent; color:#64748b; border:none;">Cancel</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('choose-essential').onclick = () => {
+      window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+    };
+    document.getElementById('choose-full').onclick = () => {
+      window.location.href = 'https://buy.stripe.com/test_9B64gz3AO5rNgH696vdfG01';
+    };
+    document.getElementById('plan-cancel').onclick = () => modal.style.display = 'none';
+  }
+  modal.style.display = 'flex';
 }
 
 function showPaywall(feature) {
