@@ -1255,7 +1255,7 @@ window.reinstateStaff = reinstateStaff;
 window.loadStaff = loadStaff;
 
 async function archiveStaff(id) {
-  if (!confirm('Archive this employee? They will be hidden from the main list but all records are kept.')) return;
+  if (!(await appConfirm('Archive this employee? They will be hidden from the main list but all records are kept.'))) return;
   await db.from('staff').update({ archived: true }).eq('id', id);
   loadStaff();
 }
