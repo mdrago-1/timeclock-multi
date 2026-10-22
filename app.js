@@ -438,7 +438,39 @@ function showMemberPortal(staff) {
           </div>
         </div>
         <div>
-          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">4. Right to work in the UK</h4>
+          <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">5. Previous employment & P45 (HMRC)</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
+            <label style="grid-column:1 / -1;">Have you been employed before?<br>
+              <select id="sf-prev-employed" required style="width:100%;">
+                <option value="">Select</option>
+                <option value="yes" ${data.previously_employed === 'yes' ? 'selected' : ''}>Yes</option>
+                <option value="no" ${data.previously_employed === 'no' ? 'selected' : ''}>No</option>
+              </select>
+            </label>
+            <label style="grid-column:1 / -1;">Do you have a P45 from your previous employer?<br>
+              <select id="sf-has-p45" required style="width:100%;">
+                <option value="">Select</option>
+                <option value="yes" ${data.has_p45 === 'yes' ? 'selected' : ''}>Yes</option>
+                <option value="no" ${data.has_p45 === 'no' ? 'selected' : ''}>No</option>
+              </select>
+            </label>
+            <label style="grid-column:1 / -1;">If yes, upload your P45 (PDF or photo)<br>
+              <input type="file" id="sf-p45-file" accept=".pdf,image/*" style="width:100%;">
+            </label>
+            <label style="grid-column:1 / -1;">If no P45, please tick the statement that applies (HMRC starter checklist):<br>
+              <select id="sf-p45-statement" style="width:100%;">
+                <option value="">Select if no P45</option>
+                <option value="A" ${data.p45_statement === 'A' ? 'selected' : ''}>A – This is my first job since 6 April and I have not been receiving taxable Jobseeker’s Allowance, Employment and Support Allowance, taxable Incapacity Benefit, State or Occupational Pension.</option>
+                <option value="B" ${data.p45_statement === 'B' ? 'selected' : ''}>B – This is now my only job, but since 6 April I have had another job, or received taxable Jobseeker’s Allowance, Employment and Support Allowance or taxable Incapacity Benefit. I do not receive a State or Occupational Pension.</option>
+                <option value="C" ${data.p45_statement === 'C' ? 'selected' : ''}>C – I have another job or receive a State or Occupational Pension.</option>
+              </select>
+            </label>
+            <label style="grid-column:1 / -1;">Upload photo ID (passport or UK driving licence)<br>
+              <input type="file" id="sf-id-file" accept=".pdf,image/*" style="width:100%;">
+            </label>
+          </div>
+        </div>
+        <div>
           <p style="margin:0.5rem 0; font-size:0.9rem;">Bring original documents or a share code on or before day one. Tick what you will use:</p>
           <label><input type="checkbox" id="sf-rtw-passport" ${data.rtw_passport ? 'checked' : ''}> UK / Irish passport</label><br>
           <label><input type="checkbox" id="sf-rtw-share" ${data.rtw_share_code ? 'checked' : ''}> Home Office share code</label><br>
@@ -605,7 +637,12 @@ async function submitStarterForm(e, staffId) {
     confirm_contract: document.getElementById('sf-contract').checked,
     confirm_phones: document.getElementById('sf-phones').checked,
     signature_name: document.getElementById('sf-signature').value.trim(),
-    signature_date: document.getElementById('sf-sig-date').value
+    signature_date: document.getElementById('sf-sig-date').value,
+    previously_employed: document.getElementById('sf-prev-employed')?.value || '',
+    has_p45: document.getElementById('sf-has-p45')?.value || '',
+    p45_statement: document.getElementById('sf-p45-statement')?.value || '',
+    p45_filename: document.getElementById('sf-p45-file')?.files[0]?.name || '',
+    id_filename: document.getElementById('sf-id-file')?.files[0]?.name || ''
   };
   if (!formData.rtw_passport && !formData.rtw_share_code && !formData.rtw_other) {
     return alert('Please tick at least one right-to-work option');
