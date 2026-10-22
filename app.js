@@ -1662,7 +1662,7 @@ async function loadSchedule() {
     d.setDate(week.start.getDate() + i);
     dayDates.push(toDateString(d));
   }
-  const { data: staff } = await db.from('staff').select('name, email, hourly_rate').eq('owner_id', currentUser.id).order('name');
+  const { data: staff } = await db.from('staff').select('name, email, hourly_rate, holiday_booked').eq('owner_id', currentUser.id).order('name');
   const startDate = toDateString(week.start);
   const endDate = toDateString(week.end);
   const { data: schedules } = await db.from('schedules')
