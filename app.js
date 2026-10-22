@@ -1085,15 +1085,25 @@ async function loadStaff() {
   const tab = document.getElementById('staff-tab');
   tab.innerHTML = `
     <h3>Employees</h3>
-    <form id="add-staff" style="display:flex; flex-direction:column; gap:0.5rem; max-width:400px;">
+    <button type="button" id="show-add-staff" style="margin-bottom:1rem;">Add Team Member</button>
+    <form id="add-staff" style="display:none; flex-direction:column; gap:0.5rem; max-width:400px; margin-bottom:1rem;">
       <input type="text" id="staff-first" placeholder="First Name" required>
       <input type="text" id="staff-last" placeholder="Last Name" required>
       <input type="text" id="staff-pin" placeholder="4-digit PIN" maxlength="4" required>
       <button type="submit">Add Employee</button>
+      <button type="button" id="cancel-add-staff" style="background:transparent; color:#64748b;">Cancel</button>
     </form>
     <div id="staff-list" style="margin-top:1rem;"></div>
   `;
   document.getElementById('add-staff').onsubmit = addStaff;
+  document.getElementById('show-add-staff').onclick = () => {
+    document.getElementById('add-staff').style.display = 'flex';
+    document.getElementById('show-add-staff').style.display = 'none';
+  };
+  document.getElementById('cancel-add-staff').onclick = () => {
+    document.getElementById('add-staff').style.display = 'none';
+    document.getElementById('show-add-staff').style.display = 'inline-block';
+  };
   const list = document.getElementById('staff-list');
   list.innerHTML = staff?.map(s => `
     <div class="staff-item" onclick="openEmployeeProfile('${s.id}')" style="cursor:pointer;">
