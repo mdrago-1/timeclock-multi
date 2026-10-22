@@ -1013,9 +1013,11 @@ async function loadSettings() {
   const tab = document.getElementById('settings-tab');
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
   document.getElementById('save-holiday-year')?.addEventListener('click', async () => {
-    const val = document.getElementById('holiday-year-start').value || '01-01';
-    await db.from('profiles').update({ holiday_year_start: val }).eq('id', currentUser.id);
+    const val = document.getElementById('holiday-year-start').value.trim() || '01-01';
+    const { error } = await db.from('profiles').update({ holiday_year_start: val }).eq('id', currentUser.id);
+    if (error) return alert(error.message);
     alert('Holiday year start saved');
+    loadSettings();
   });
   const currentStyle = localStorage.getItem('clock_style') || 'plain';
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1646,7 +1648,7 @@ async function loadSchedule() {
   const title = `${formatDate(week.start)} – ${formatDate(week.end)}`;
   const publishBtn = published 
     ? `<button disabled style="background:#94a3b8;">Published</button>` 
-    : `<button onclick="publishWeek('${startDate}')" style="background:#2563eb;">Publish to member portal</button>`;
+    : '';
   let table = `<div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
       <button onclick="changeWeek(-1)" style="font-size:1.2rem;">←</button>
       <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
@@ -1719,6 +1721,8 @@ async function loadSchedule() {
   tab.querySelectorAll('.add-shift').forEach(btn => {
     btn.onclick = () => {
       const cell = btn.parentElement;
+      const slots = cell.querySelectorAll('.shift-slot');
+      if (slots.length >= 2) return;
       const date = btn.dataset.date;
       const extra = document.createElement('div');
       extra.className = 'shift-slot';
