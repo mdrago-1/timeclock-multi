@@ -1234,7 +1234,6 @@ window.archiveStaff = archiveStaff;
 async function saveWorkerType(staffId) {
   const type = document.getElementById('worker-type-' + staffId).value;
   await db.from('staff').update({ worker_type: type }).eq('id', staffId);
-  alert('Worker type saved');
 }
 window.saveWorkerType = saveWorkerType;
 
@@ -1322,12 +1321,11 @@ async function openEmployeeProfile(staffId) {
     ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
     ${staff.statutory_received ? '<p style="color:#16a34a;">Statutory documents received</p>' : '<p style="color:#94a3b8;">Statutory documents not yet sent</p>'}
     <label style="display:block; margin:0.75rem 0;">Worker type
-      <select id="worker-type-${staffId}" style="margin-left:0.5rem;">
+      <select id="worker-type-${staffId}" style="margin-left:0.5rem;" onchange="saveWorkerType('${staffId}')">
         <option value="salaried" ${staff.worker_type==='salaried'?'selected':''}>Salaried</option>
         <option value="hourly" ${staff.worker_type==='hourly'||staff.worker_type==='irregular'?'selected':''}>Hourly</option>
       </select>
     </label>
-    <button type="button" onclick="saveWorkerType('${staffId}')">Save worker type</button>
     ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
     <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
       <label>First Name<br><input type="text" id="edit-first" value="${first}" style="width:100%;"></label>
