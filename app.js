@@ -1772,7 +1772,13 @@ async function loadSchedule() {
       `;
       const flex = btn.previousElementSibling;
       if (flex) flex.appendChild(extra);
+      // auto-save on the new inputs
+      extra.querySelectorAll('input').forEach(inp => inp.onchange = () => saveScheduleTable());
     };
+  });
+  // Auto-save when any existing time changes
+  tab.querySelectorAll('.shift-start, .shift-end').forEach(inp => {
+    inp.onchange = () => saveScheduleTable();
   });
 }
 
@@ -1915,8 +1921,7 @@ async function saveScheduleTable() {
     const { error } = await db.from('schedules').insert(toInsert);
     if (error) return alert(error.message);
   }
-  alert('Timetable saved');
-  loadSchedule();
+  // auto-saved
 }
 window.saveScheduleTable = saveScheduleTable;
 
