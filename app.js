@@ -1085,6 +1085,7 @@ async function loadStaff() {
   const tab = document.getElementById('staff-tab');
   tab.innerHTML = `
     <h3>Employees</h3>
+    <input type="text" id="staff-search" placeholder="Search employees…" style="width:100%; max-width:400px; margin-bottom:1rem; padding:0.6rem;">
     <button type="button" id="show-add-staff" style="margin-bottom:1rem;">Add Team Member</button>
     <form id="add-staff" style="display:none; flex-direction:column; gap:0.5rem; max-width:400px; margin-bottom:1rem;">
       <input type="text" id="staff-first" placeholder="First Name" required>
