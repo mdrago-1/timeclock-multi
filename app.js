@@ -958,9 +958,9 @@ async function loadHoliday() {
       <td style="padding:0.6rem; text-align:center;">${type}</td>
       <td style="padding:0.6rem; text-align:center;">${hours.toFixed(1)}</td>
       <td style="padding:0.6rem; text-align:center;">${accrued}</td>
-      <td style="padding:0.6rem; text-align:center;">${bookedDays}</td>
       <td style="padding:0.6rem; text-align:center;">${taken}</td>
       <td style="padding:0.6rem; text-align:center;">${Math.max(0, accrued - taken)}</td>
+      <td style="padding:0.6rem; text-align:center; ${bookedDays > accrued ? 'color:#dc2626; font-weight:600;' : ''}">${bookedDays}</td>
       <td style="padding:0.6rem; text-align:right;"><button type="button" onclick="openHolidayDetail('${s.id}')">Details</button></td>
     </tr>`;
   }
