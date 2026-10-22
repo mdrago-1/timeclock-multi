@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Time Rogue</title>
@@ -134,7 +136,11 @@
         <div class="keypad" id="keypad"></div>
       </div>
       <div id="welcome-section" class="welcome-container" style="display:none;">
-        <h1 id="welcome-message">Welcome</h1>
+        
+<div style="text-align:center; margin:1rem 0; padding:0.75rem; background:#f1f5f9; border-radius:8px; font-size:0.9rem; color:#475569;">
+  <strong>Add to Home Screen:</strong> On iPhone tap Share → Add to Home Screen. On Android tap the menu (⋮) → Add to Home Screen.
+</div>
+<h1 id="welcome-message">Welcome</h1>
         <div id="action-buttons" class="action-grid"></div>
         <div class="bottom-logos">
           <div class="shop-logo-placeholder">Shop</div>
