@@ -184,6 +184,35 @@ function hasSubscription() {
   return !!window._subscriptionActive;
 }
 
+function appConfirm(message) {
+  return new Promise(resolve => {
+    let modal = document.getElementById('app-confirm-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'app-confirm-modal';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:300; display:flex; align-items:center; justify-content:center; padding:1rem;';
+      modal.innerHTML = `
+        <div style="background:white; border-radius:12px; padding:1.5rem; max-width:340px; width:100%; text-align:center;">
+          <p id="app-confirm-msg" style="margin:0 0 1.25rem; color:#0f172a;"></p>
+          <div style="display:flex; gap:0.5rem; justify-content:center;">
+            <button type="button" id="app-confirm-cancel" style="background:transparent; color:#64748b; border:1px solid #e2e8f0;">Cancel</button>
+            <button type="button" id="app-confirm-ok" style="background:#0f172a; color:white;">OK</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    document.getElementById('app-confirm-msg').textContent = message;
+    modal.style.display = 'flex';
+    const cleanup = (result) => {
+      modal.style.display = 'none';
+      resolve(result);
+    };
+    document.getElementById('app-confirm-ok').onclick = () => cleanup(true);
+    document.getElementById('app-confirm-cancel').onclick = () => cleanup(false);
+  });
+}
+
 function showPlanChoice() {
   let modal = document.getElementById('plan-choice-modal');
   if (!modal) {
@@ -604,7 +633,7 @@ async function loadMemberHours(staffId) {
 
 async function submitStarterForm(e, staffId) {
   e.preventDefault();
-  if (!confirm('Confirm all info is correct as this can\'t be undone. Submit now?')) return;
+  if (!(await appConfirm('Confirm all info is correct as this can\'t be undone. Submit now?'))) return;
   const formData = {
     agreed_start_date: document.getElementById('sf-start-date').value,
     agreed_pay_rate: document.getElementById('sf-pay-rate').value,
@@ -1238,7 +1267,7 @@ async function saveWorkerType(staffId) {
 window.saveWorkerType = saveWorkerType;
 
 async function resetStarterForm(staffId) {
-  if (!confirm('Allow this employee to fill out the starter form again? Previous answers will be kept in the record.')) return;
+  if (!(await appConfirm('Allow this employee to fill out the starter form again? Previous answers will be kept in the record.'))) return;
   const { error } = await db.from('staff').update({
     starter_form_completed: false
   }).eq('id', staffId);
