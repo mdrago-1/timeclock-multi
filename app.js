@@ -141,6 +141,7 @@ function setupEventListeners() {
         }
         loadSchedule();
       }
+      if (tab.dataset.tab === 'holiday') loadHoliday();
       if (tab.dataset.tab === 'settings') loadSettings();
       if (tab.dataset.tab === 'statutory') loadStatutory();
     });
@@ -901,6 +902,36 @@ async function applyClockStyle() {
   });
 }
 
+async function loadHoliday() {
+  const tab = document.getElementById('holiday-tab');
+  if (!tab) return;
+  const { data: profile } = await db.from('profiles').select('holiday_year_start').eq('id', currentUser.id).single();
+  const yearStart = profile?.holiday_year_start || '01-01';
+  const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false);
+  let html = `<h3>Holiday</h3><p style="color:#64748b;">Holiday year starts: ${yearStart}</p>`;
+  for (const s of staff || []) {
+    const type = s.worker_type || 'salaried';
+    const startDate = s.starter_form_data?.agreed_start_date;
+    const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
+    let accrued = 28;
+    if (type === 'salaried') accrued = Math.round((months / 12) * 28 * 10) / 10;
+    else if (type === 'regular') accrued = Math.min(28, 5.6 * 5); // placeholder days/week
+    else accrued = 0; // irregular needs hours data
+    const taken = s.holiday_taken || 0;
+    html += `
+      <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin:0.75rem 0;">
+        <strong>${s.name}</strong> <span style="color:#64748b; font-size:0.85rem;">(${type})</span>
+        <div style="display:flex; gap:1.5rem; margin-top:0.5rem; font-size:0.9rem;">
+          <span>Accrued: <strong>${accrued}</strong></span>
+          <span>Taken: <strong>${taken}</strong></span>
+          <span>Remaining: <strong>${Math.max(0, accrued - taken)}</strong></span>
+        </div>
+      </div>
+    `;
+  }
+  tab.innerHTML = html || '<p>No employees</p>';
+}
+
 async function loadStatutory() {
   const tab = document.getElementById('statutory-tab');
   if (!tab) return;
@@ -1158,7 +1189,12 @@ async function archiveStaff(id) {
   loadStaff();
 }
 window.archiveStaff = archiveStaff;
-window.openEmployeeProfile = openEmployeeProfile;
+async function saveWorkerType(staffId) {
+  const type = document.getElementById('worker-type').value;
+  await db.from('staff').update({ worker_type: type }).eq('id', staffId);
+  alert('Worker type saved');
+}
+window.saveWorkerType = saveWorkerType;
 
 async function resetStarterForm(staffId) {
   if (!confirm('Allow this employee to fill out the starter form again? Previous answers will be kept in the record.')) return;
