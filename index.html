@@ -1,6 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+<style>
+  @media (max-width: 640px) {
+    header[style*="justify-content:space-between"] {
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+    }
+    header[style*="justify-content:space-between"] img {
+      height: 36px !important;
+    }
+    header[style*="justify-content:space-between"] > div {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    header[style*="justify-content:space-between"] button {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.7rem;
+    }
+  }
+</style>
+
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta charset="UTF-8">
