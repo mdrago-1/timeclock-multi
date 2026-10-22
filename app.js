@@ -68,6 +68,31 @@ function setupEventListeners() {
     authForm.onsubmit = (e) => { e.preventDefault(); login(e); return false; };
   }
   document.getElementById('signup-btn')?.addEventListener('click', showPlanChoice);
+  document.getElementById('login-btn')?.addEventListener('click', () => {
+    const m = document.getElementById('login-modal');
+    if (m) m.style.display = 'flex';
+  });
+  document.getElementById('login-cancel')?.addEventListener('click', () => {
+    const m = document.getElementById('login-modal');
+    if (m) m.style.display = 'none';
+  });
+  document.getElementById('forgot-btn')?.addEventListener('click', () => {
+    const m = document.getElementById('forgot-modal');
+    if (m) m.style.display = 'flex';
+  });
+  document.getElementById('forgot-cancel')?.addEventListener('click', () => {
+    const m = document.getElementById('forgot-modal');
+    if (m) m.style.display = 'none';
+  });
+  document.getElementById('forgot-submit')?.addEventListener('click', () => {
+    const email = document.getElementById('forgot-email')?.value;
+    if (!email) return alert('Enter your email');
+    db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }).then(({ error }) => {
+      if (error) return alert(error.message);
+      alert('Password reset email sent. Check your inbox.');
+      document.getElementById('forgot-modal').style.display = 'none';
+    });
+  });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('kiosk-code-submit')?.addEventListener('click', kioskLoginWithCode);
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
