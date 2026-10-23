@@ -13,9 +13,9 @@
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ],
   "screenshots": [
-    { "src": "/preview-keypad.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Clock in keypad" },
-    { "src": "/preview-schedule.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Weekly schedule" },
-    { "src": "/preview-timesheets.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Timesheets" },
-    { "src": "/preview-starter.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "New starter form" }
+    { "src": "/preview-keypad.png", "sizes": "800x500", "type": "image/png", "form_factor": "wide", "label": "Clock in keypad" },
+    { "src": "/preview-schedule.png", "sizes": "800x500", "type": "image/png", "form_factor": "wide", "label": "Weekly schedule" },
+    { "src": "/preview-timesheets.png", "sizes": "800x500", "type": "image/png", "form_factor": "wide", "label": "Timesheets" },
+    { "src": "/preview-starter.png", "sizes": "800x500", "type": "image/png", "form_factor": "wide", "label": "New starter form" }
   ]
 }
