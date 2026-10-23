@@ -11,17 +11,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     applyClockStyle();
 
-    // Detect password recovery flow from the URL hash
+    // Listen for password recovery event from Supabase
+    db.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        currentUser = session.user;
+        showPasswordResetForm();
+        history.replaceState(null, '', window.location.pathname);
+      }
+    });
+
+    // Also check the hash directly
     const hash = window.location.hash || '';
     const isRecovery = hash.includes('type=recovery') || hash.includes('access_token');
 
     if (isRecovery) {
-      // Supabase will have already set the session from the recovery link
+      // Give Supabase a moment to process the hash
+      await new Promise(r => setTimeout(r, 300));
       const { data: { session } } = await db.auth.getSession();
       if (session) {
         currentUser = session.user;
         showPasswordResetForm();
-        // Clean the hash so a refresh doesn't re-trigger
         history.replaceState(null, '', window.location.pathname);
         return;
       }
