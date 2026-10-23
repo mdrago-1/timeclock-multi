@@ -566,12 +566,13 @@ function showMemberPortal(staff) {
   document.getElementById('save-member-notifications').onclick = async () => {
     const holiday = document.getElementById('notify-holiday-result').checked;
     const shift = document.getElementById('notify-shift-start').checked;
-    await db.from('staff').update({
+    const { error } = await db.from('staff').update({
       notify_holiday_result: holiday,
       notify_shift_start: shift
     }).eq('id', staff.id);
+    if (error) return alert('Could not save: ' + error.message);
     if ((holiday || shift) && window.OneSignal) {
-      await OneSignal.Notifications.requestPermission();
+      try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
     }
     alert('Notification preferences saved');
   };
@@ -1167,12 +1168,13 @@ async function loadSettings() {
   document.getElementById('save-notifications').onclick = async () => {
     const clockin = document.getElementById('notify-clockin').checked;
     const holiday = document.getElementById('notify-holiday').checked;
-    await db.from('profiles').update({
+    const { error } = await db.from('profiles').update({
       notify_clockin: clockin,
       notify_holiday_request: holiday
     }).eq('id', currentUser.id);
+    if (error) return alert('Could not save: ' + error.message);
     if ((clockin || holiday) && window.OneSignal) {
-      await OneSignal.Notifications.requestPermission();
+      try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
     }
     alert('Notification preferences saved');
   };
