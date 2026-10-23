@@ -564,10 +564,15 @@ function showMemberPortal(staff) {
   loadMemberShifts(staff.name);
   loadMemberHours(staff.id);
   document.getElementById('save-member-notifications').onclick = async () => {
+    const holiday = document.getElementById('notify-holiday-result').checked;
+    const shift = document.getElementById('notify-shift-start').checked;
     await db.from('staff').update({
-      notify_holiday_result: document.getElementById('notify-holiday-result').checked,
-      notify_shift_start: document.getElementById('notify-shift-start').checked
+      notify_holiday_result: holiday,
+      notify_shift_start: shift
     }).eq('id', staff.id);
+    if ((holiday || shift) && window.OneSignal) {
+      await OneSignal.Notifications.requestPermission();
+    }
     alert('Notification preferences saved');
   };
 }
@@ -1160,10 +1165,15 @@ async function loadSettings() {
     loadSettings();
   };
   document.getElementById('save-notifications').onclick = async () => {
+    const clockin = document.getElementById('notify-clockin').checked;
+    const holiday = document.getElementById('notify-holiday').checked;
     await db.from('profiles').update({
-      notify_clockin: document.getElementById('notify-clockin').checked,
-      notify_holiday_request: document.getElementById('notify-holiday').checked
+      notify_clockin: clockin,
+      notify_holiday_request: holiday
     }).eq('id', currentUser.id);
+    if ((clockin || holiday) && window.OneSignal) {
+      await OneSignal.Notifications.requestPermission();
+    }
     alert('Notification preferences saved');
   };
   document.getElementById('logo-form').onsubmit = uploadLogo;
