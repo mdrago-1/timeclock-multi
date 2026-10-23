@@ -546,12 +546,11 @@ function showMemberPortal(staff) {
     ${formSection}
     <h3 style="margin-top:2rem;">Notifications</h3>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0;">
-      <input type="checkbox" id="notify-holiday-result"> Holiday approvals and rejections
+      <input type="checkbox" id="notify-holiday-result" onchange="saveMemberNotifications('${staff.id}')"> Holiday approvals and rejections
     </label>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0 0.75rem;">
-      <input type="checkbox" id="notify-shift-start"> Shift start reminders
+      <input type="checkbox" id="notify-shift-start" onchange="saveMemberNotifications('${staff.id}')"> Shift start reminders
     </label>
-    <button type="button" id="save-member-notifications">Save</button>
     <h3 style="margin-top:2rem;">My Shifts</h3>
     <div id="member-shifts" style="margin-top:0.5rem;">Loading...</div>
     <h3 style="margin-top:2rem;">My Hours</h3>
@@ -563,19 +562,6 @@ function showMemberPortal(staff) {
   }
   loadMemberShifts(staff.name);
   loadMemberHours(staff.id);
-  document.getElementById('save-member-notifications').onclick = async () => {
-    const holiday = document.getElementById('notify-holiday-result').checked;
-    const shift = document.getElementById('notify-shift-start').checked;
-    const { error } = await db.from('staff').update({
-      notify_holiday_result: holiday,
-      notify_shift_start: shift
-    }).eq('id', staff.id);
-    if (error) return alert('Could not save: ' + error.message);
-    if ((holiday || shift) && window.OneSignal) {
-      try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
-    }
-    alert('Notification preferences saved');
-  };
 }
 
 async function loadMemberShifts(staffName) {
@@ -1112,14 +1098,13 @@ async function loadSettings() {
     <button type="button" id="save-holiday-year" style="margin:0.5rem 0 1.5rem;">Save</button>
     <h3>Notifications</h3>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0;">
-      <input type="checkbox" id="notify-clockin" ${profile?.notify_clockin ? 'checked' : ''}>
+      <input type="checkbox" id="notify-clockin" ${profile?.notify_clockin ? 'checked' : ''} onchange="saveAdminNotifications()">
       Clock-in alerts
     </label>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0 1rem;">
-      <input type="checkbox" id="notify-holiday" ${profile?.notify_holiday_request ? 'checked' : ''}>
+      <input type="checkbox" id="notify-holiday" ${profile?.notify_holiday_request ? 'checked' : ''} onchange="saveAdminNotifications()">
       New holiday requests
     </label>
-    <button type="button" id="save-notifications">Save notification preferences</button>
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
@@ -1165,19 +1150,31 @@ async function loadSettings() {
     alert('Holiday year start saved');
     loadSettings();
   };
-  document.getElementById('save-notifications').onclick = async () => {
-    const clockin = document.getElementById('notify-clockin').checked;
-    const holiday = document.getElementById('notify-holiday').checked;
-    const { error } = await db.from('profiles').update({
-      notify_clockin: clockin,
-      notify_holiday_request: holiday
-    }).eq('id', currentUser.id);
-    if (error) return alert('Could not save: ' + error.message);
-    if ((clockin || holiday) && window.OneSignal) {
-      try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
-    }
-    alert('Notification preferences saved');
-  };
+async function saveAdminNotifications() {
+  const clockin = document.getElementById('notify-clockin').checked;
+  const holiday = document.getElementById('notify-holiday').checked;
+  await db.from('profiles').update({
+    notify_clockin: clockin,
+    notify_holiday_request: holiday
+  }).eq('id', currentUser.id);
+  if ((clockin || holiday) && window.OneSignal) {
+    try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
+  }
+}
+window.saveAdminNotifications = saveAdminNotifications;
+
+async function saveMemberNotifications(staffId) {
+  const holiday = document.getElementById('notify-holiday-result').checked;
+  const shift = document.getElementById('notify-shift-start').checked;
+  await db.from('staff').update({
+    notify_holiday_result: holiday,
+    notify_shift_start: shift
+  }).eq('id', staffId);
+  if ((holiday || shift) && window.OneSignal) {
+    try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
+  }
+}
+window.saveMemberNotifications = saveMemberNotifications;
   document.getElementById('logo-form').onsubmit = uploadLogo;
   document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
   document.getElementById('kiosk-code-form').onsubmit = saveKioskCode;
