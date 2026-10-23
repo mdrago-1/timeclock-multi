@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Time Rogue",
   "short_name": "Time Rogue",
-  "description": "Staff time clock, schedules and holiday tracking for UK businesses.",
+  "description": "Staff time clock, scheduling, holiday tracking, new starter forms and employee records for UK businesses.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -11,10 +11,11 @@
   "theme_color": "#0f172a",
   "lang": "en-GB",
   "dir": "ltr",
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "utilities"],
   "shortcuts": [
     { "name": "Clock In", "url": "/", "description": "Open the time clock" },
-    { "name": "Schedule", "url": "/?tab=schedule", "description": "View the weekly schedule" }
+    { "name": "Schedule", "url": "/?tab=schedule", "description": "View and edit the weekly schedule" },
+    { "name": "Employees", "url": "/?tab=staff", "description": "Manage employee records" }
   ],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
