@@ -1,9 +1,11 @@
 {
+  "id": "/",
   "name": "Time Rogue",
   "short_name": "Time Rogue",
   "description": "Staff time clock, schedules and holiday tracking for UK businesses.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
