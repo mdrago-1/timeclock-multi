@@ -1089,6 +1089,16 @@ async function loadSettings() {
       <input type="text" id="holiday-year-start" value="${profile?.holiday_year_start || '01-01'}" style="width:120px;">
     </label>
     <button type="button" id="save-holiday-year" style="margin:0.5rem 0 1.5rem;">Save</button>
+    <h3>Notifications</h3>
+    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0;">
+      <input type="checkbox" id="notify-clockin" ${profile?.notify_clockin ? 'checked' : ''}>
+      Clock-in alerts
+    </label>
+    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0 1rem;">
+      <input type="checkbox" id="notify-holiday" ${profile?.notify_holiday_request ? 'checked' : ''}>
+      New holiday requests
+    </label>
+    <button type="button" id="save-notifications">Save notification preferences</button>
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
@@ -1133,6 +1143,13 @@ async function loadSettings() {
     if (error) return alert('Could not save: ' + error.message);
     alert('Holiday year start saved');
     loadSettings();
+  };
+  document.getElementById('save-notifications').onclick = async () => {
+    await db.from('profiles').update({
+      notify_clockin: document.getElementById('notify-clockin').checked,
+      notify_holiday_request: document.getElementById('notify-holiday').checked
+    }).eq('id', currentUser.id);
+    alert('Notification preferences saved');
   };
   document.getElementById('logo-form').onsubmit = uploadLogo;
   document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
