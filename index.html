@@ -275,5 +275,11 @@
   <p>Subscription payments are non-refundable for the current billing period. You can cancel at any time; access continues until the end of the paid period, then drops back to Essential features only.</p>
   <p>If you believe a charge was made in error, contact us within 14 days.</p>
 </div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+</script>
 </body>
 </html>
