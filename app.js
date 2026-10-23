@@ -544,6 +544,14 @@ function showMemberPortal(staff) {
   content.innerHTML = `
     <h2>${staff.name}</h2>
     ${formSection}
+    <h3 style="margin-top:2rem;">Notifications</h3>
+    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0;">
+      <input type="checkbox" id="notify-holiday-result"> Holiday approvals and rejections
+    </label>
+    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0 0.75rem;">
+      <input type="checkbox" id="notify-shift-start"> Shift start reminders
+    </label>
+    <button type="button" id="save-member-notifications">Save</button>
     <h3 style="margin-top:2rem;">My Shifts</h3>
     <div id="member-shifts" style="margin-top:0.5rem;">Loading...</div>
     <h3 style="margin-top:2rem;">My Hours</h3>
@@ -555,6 +563,13 @@ function showMemberPortal(staff) {
   }
   loadMemberShifts(staff.name);
   loadMemberHours(staff.id);
+  document.getElementById('save-member-notifications').onclick = async () => {
+    await db.from('staff').update({
+      notify_holiday_result: document.getElementById('notify-holiday-result').checked,
+      notify_shift_start: document.getElementById('notify-shift-start').checked
+    }).eq('id', staff.id);
+    alert('Notification preferences saved');
+  };
 }
 
 async function loadMemberShifts(staffName) {
