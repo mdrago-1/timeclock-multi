@@ -1,24 +1,23 @@
 const CACHE = 'time-rogue-v1';
-const ASSETS = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/styles.css',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/time-rogue-logo.png',
-  '/time-rogue-logo-white.png'
-];
+const ASSETS = ['/', '/index.html', '/app.js', '/styles.css', '/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
-
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(self.clients.claim());
 });
-
 self.addEventListener('fetch', e => {
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
+self.addEventListener('push', e => {
+  const data = e.data ? e.data.json() : { title: 'Time Rogue', body: 'You have a notification' };
+  e.waitUntil(self.registration.showNotification(data.title || 'Time Rogue', {
+    body: data.body || '',
+    icon: '/icon-192.png'
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(clients.openWindow('/'));
 });
