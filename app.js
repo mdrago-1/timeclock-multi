@@ -882,12 +882,19 @@ function handleKey(d) {
 
 async function validatePin() {
   if (currentPin.length !== 4 || !currentUser) return;
-  const { data: staff, error } = await db.from('staff')
-    .select('*')
-    .eq('pin', currentPin)
-    .eq('owner_id', currentUser.id)
-    .single();
-  if (error || !staff) {
+  let staff = null;
+  if (window._keypadOwnerId) {
+    const { data } = await db.rpc('keypad_staff', { p_owner_id: window._keypadOwnerId });
+    staff = (data || []).find(s => s.pin === currentPin);
+  } else {
+    const { data, error } = await db.from('staff')
+      .select('*')
+      .eq('pin', currentPin)
+      .eq('owner_id', currentUser.id)
+      .single();
+    if (!error) staff = data;
+  }
+  if (!staff) {
     showStatus('Invalid PIN', 'error');
     currentPin = '';
     updatePinDots();
@@ -944,9 +951,16 @@ function showStatus(msg, type = '') {
 }
 
 async function updateShopLogo() {
-  if (!currentUser) return;
-  const { data: profile } = await db.from('profiles').select('logo_url').eq('id', currentUser.id).single();
-  const logoUrl = profile?.logo_url;
+  const ownerId = window._keypadOwnerId || currentUser?.id;
+  if (!ownerId) return;
+  let logoUrl = null;
+  if (window._keypadOwnerId) {
+    const { data } = await db.rpc('keypad_logo', { p_owner_id: window._keypadOwnerId });
+    logoUrl = data;
+  } else {
+    const { data: profile } = await db.from('profiles').select('logo_url').eq('id', ownerId).single();
+    logoUrl = profile?.logo_url;
+  }
   document.querySelectorAll('.shop-logo-placeholder').forEach(el => {
     if (logoUrl) {
       const h = el.classList.contains('auth-shop-logo') ? '96px' : '64px';
