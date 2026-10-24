@@ -131,12 +131,16 @@
         </div>
       </div>
 
-      <div id="kiosk-login-panel" style="display:none; max-width:320px; margin:1.5rem auto; text-align:center;">
-        <input type="text" id="keypad-username" placeholder="Keypad username" style="width:100%; padding:0.6rem; margin-bottom:0.5rem;">
-        <input type="password" id="keypad-password" placeholder="Keypad password" style="width:100%; padding:0.6rem; margin-bottom:0.5rem;">
-        <button type="button" id="keypad-login-submit" style="margin-right:0.5rem;">Open Keypad</button>
-        <button type="button" id="kiosk-code-cancel">Cancel</button>
-        <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
+      <!-- Keypad Clock-In modal -->
+      <div id="keypad-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:300; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:1.5rem; max-width:340px; width:100%;">
+          <h3 style="margin:0 0 1rem; text-align:center;">Keypad Clock-In</h3>
+          <input type="text" id="keypad-username" placeholder="Username" style="width:100%; padding:0.6rem; margin-bottom:0.5rem; box-sizing:border-box;">
+          <input type="password" id="keypad-password" placeholder="Password" style="width:100%; padding:0.6rem; margin-bottom:0.75rem; box-sizing:border-box;">
+          <button type="button" id="keypad-login-submit" style="width:100%; margin-bottom:0.5rem;">Open Keypad</button>
+          <button type="button" id="keypad-cancel" style="width:100%; background:transparent; color:#64748b;">Cancel</button>
+          <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem; text-align:center;"></p>
+        </div>
       </div>
     </div>
 
