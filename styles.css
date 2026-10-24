@@ -179,6 +179,7 @@ button { background: #ffffff; color: #0f172a; border: 1px solid #e2e8f0; cursor:
 .shop-logo-placeholder.small { width: 40px; height: 40px; font-size: 0.6rem; }
 .tabs { display: flex; background: white; border-bottom: 1px solid #e2e8f0; overflow-x: auto; }
 .tab { flex: 1; background: transparent; color: #64748b; border-radius: 0; padding: 1rem; white-space: nowrap; }
+.plan-lock { width: 13px; height: 13px; margin-left: 0.28rem; vertical-align: -1px; display: inline-block; }
 .tab.active { color: #2563eb; border-bottom: 2px solid #2563eb; background: transparent; }
 .tab-content { display: none; padding: 1rem; }
 .tab-content.active { display: block; }
