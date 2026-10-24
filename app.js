@@ -113,6 +113,9 @@ function setupEventListeners() {
   });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('keypad-login-submit')?.addEventListener('click', keypadLogin);
+  document.getElementById('keypad-cancel')?.addEventListener('click', () => {
+    document.getElementById('keypad-modal').style.display = 'none';
+  });
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
   document.getElementById('exit-admin')?.addEventListener('click', showChooser);
@@ -809,23 +812,12 @@ async function signup() {
 }
 
 function showKioskLoginPanel() {
-  let modal = document.getElementById('keypad-modal');
-  if (modal) modal.remove();
-  modal = document.createElement('div');
-  modal.id = 'keypad-modal';
-  modal.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
-  modal.innerHTML = `
-    <div style="background:white; padding:1.5rem; border-radius:12px; max-width:320px; width:90%; text-align:center;">
-      <h3 style="margin:0 0 1rem;">Keypad Clock-In</h3>
-      <input type="text" id="keypad-username" placeholder="Username" style="width:100%; padding:0.6rem; margin-bottom:0.5rem; box-sizing:border-box;">
-      <input type="password" id="keypad-password" placeholder="Password" style="width:100%; padding:0.6rem; margin-bottom:0.75rem; box-sizing:border-box;">
-      <button type="button" onclick="keypadLogin()" style="width:100%; margin-bottom:0.5rem; cursor:pointer; padding:0.6rem;">Open Keypad</button>
-      <button type="button" onclick="document.getElementById('keypad-modal').remove()" style="width:100%; background:transparent; color:#64748b; cursor:pointer; padding:0.6rem;">Cancel</button>
-      <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  window.keypadLogin = keypadLogin;
+  const modal = document.getElementById('keypad-modal');
+  if (!modal) return alert('Modal missing');
+  modal.style.display = 'flex';
+  document.getElementById('keypad-username').value = '';
+  document.getElementById('keypad-password').value = '';
+  document.getElementById('kiosk-login-status').textContent = '';
   document.getElementById('keypad-username').focus();
 }
 
