@@ -932,12 +932,23 @@ async function showActions() {
 }
 
 async function recordAction(type) {
-  const { error } = await db.from('clocks').insert({
-    owner_id: currentUser.id,
-    staff_id: currentStaff.id,
-    type,
-    timestamp: new Date().toISOString()
-  });
+  let error = null;
+  if (window._keypadOwnerId) {
+    const res = await db.rpc('keypad_clock', {
+      p_owner_id: window._keypadOwnerId,
+      p_staff_id: currentStaff.id,
+      p_type: type
+    });
+    error = res.error;
+  } else {
+    const res = await db.from('clocks').insert({
+      owner_id: currentUser.id,
+      staff_id: currentStaff.id,
+      type,
+      timestamp: new Date().toISOString()
+    });
+    error = res.error;
+  }
   if (error) return showStatus('Error recording', 'error');
   showStatus(`${currentStaff.name} recorded`);
   setTimeout(showPin, 1500);
