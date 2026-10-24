@@ -1206,10 +1206,15 @@ async function loadSettings() {
       New holiday requests
     </label>
     <h3 style="margin-top:1.5rem;">Geofencing</h3>
-    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0 1rem;">
+    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0 0.75rem;">
       <input type="checkbox" id="geofence-enabled" ${profile?.geofence_enabled ? 'checked' : ''} onchange="saveGeofence()">
       Geofencing (When off this allows remote clocking in and out)
     </label>
+    <div id="geofence-address-wrap" style="margin-bottom:1rem; ${profile?.geofence_enabled ? '' : 'display:none;'}">
+      <input type="text" id="geofence-address" placeholder="Workplace address" style="width:100%; max-width:320px; padding:0.5rem; margin-bottom:0.4rem;">
+      <button type="button" onclick="setGeofenceAddress()">Set location</button>
+      <p id="geofence-status" style="font-size:0.85rem; color:#64748b; margin-top:0.3rem;"></p>
+    </div>
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
@@ -1270,20 +1275,29 @@ async function saveAdminNotifications() {
 }
 window.saveGeofence = async function() {
   const enabled = document.getElementById('geofence-enabled').checked;
-  if (enabled && navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      await db.from('profiles').update({
-        geofence_enabled: true,
-        geofence_lat: pos.coords.latitude,
-        geofence_lng: pos.coords.longitude
-      }).eq('id', currentUser.id);
-      alert('Geofencing on. Location set to your current position (50m radius).');
-    }, () => {
-      alert('Could not get location. Geofencing not enabled.');
-      document.getElementById('geofence-enabled').checked = false;
-    });
-  } else {
-    await db.from('profiles').update({ geofence_enabled: false }).eq('id', currentUser.id);
+  document.getElementById('geofence-address-wrap').style.display = enabled ? 'block' : 'none';
+  await db.from('profiles').update({ geofence_enabled: enabled }).eq('id', currentUser.id);
+};
+
+window.setGeofenceAddress = async function() {
+  const address = document.getElementById('geofence-address').value.trim();
+  const status = document.getElementById('geofence-status');
+  if (!address) return status.textContent = 'Enter an address';
+  status.textContent = 'Looking up…';
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+    const data = await res.json();
+    if (!data.length) return status.textContent = 'Address not found';
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+    await db.from('profiles').update({
+      geofence_lat: lat,
+      geofence_lng: lng,
+      geofence_enabled: true
+    }).eq('id', currentUser.id);
+    status.textContent = 'Location set (50m radius)';
+  } catch (err) {
+    status.textContent = 'Could not look up address';
   }
 };
 
