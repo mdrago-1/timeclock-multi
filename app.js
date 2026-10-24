@@ -852,22 +852,22 @@ async function keypadLogin() {
   status.textContent = 'Checking…';
   status.style.color = '#64748b';
   try {
-    const { data, error } = await db.from('profiles')
-      .select('id, keypad_password')
-      .eq('keypad_username', username)
-      .maybeSingle();
+    const { data, error } = await db.rpc('keypad_login', {
+      p_username: username,
+      p_password: password
+    });
     if (error) {
       status.textContent = 'Error: ' + error.message;
       status.style.color = '#dc2626';
       return;
     }
-    if (!data || data.keypad_password !== password) {
+    if (!data) {
       status.textContent = 'Incorrect username or password';
       status.style.color = '#dc2626';
       return;
     }
-    window._keypadOwnerId = data.id;
-    currentUser = { id: data.id };
+    window._keypadOwnerId = data;
+    currentUser = { id: data };
     document.getElementById('keypad-modal').style.display = 'none';
     showKiosk();
     status.textContent = '';
