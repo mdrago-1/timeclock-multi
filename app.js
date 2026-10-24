@@ -840,10 +840,11 @@ function hideKioskLoginPanel() {
 }
 
 async function keypadLogin() {
+  alert('Clicked');
   const username = document.getElementById('keypad-username').value.trim().toLowerCase();
   const password = document.getElementById('keypad-password').value;
   const status = document.getElementById('kiosk-login-status');
-  if (!status) return alert('Status element missing');
+  if (!status) return alert('No status');
   if (username.length < 6 || password.length < 6) {
     status.textContent = 'Username and password must be at least 6 characters';
     status.style.color = '#dc2626';
@@ -857,21 +858,25 @@ async function keypadLogin() {
       p_password: password
     });
     if (error) {
+      alert('Error: ' + error.message);
       status.textContent = 'Error: ' + error.message;
       status.style.color = '#dc2626';
       return;
     }
     if (!data) {
+      alert('No match');
       status.textContent = 'Incorrect username or password';
       status.style.color = '#dc2626';
       return;
     }
+    alert('OK: ' + data);
     window._keypadOwnerId = data;
     currentUser = { id: data };
     document.getElementById('keypad-modal').style.display = 'none';
     showKiosk();
     status.textContent = '';
   } catch (err) {
+    alert('Fail: ' + err.message);
     status.textContent = 'Failed: ' + err.message;
     status.style.color = '#dc2626';
   }
