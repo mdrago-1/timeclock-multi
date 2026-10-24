@@ -815,19 +815,17 @@ function showKioskLoginPanel() {
   modal.id = 'keypad-modal';
   modal.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
   modal.innerHTML = `
-    <form id="keypad-login-form" style="background:white; padding:1.5rem; border-radius:12px; max-width:320px; width:90%; text-align:center; position:relative; z-index:10000;">
+    <div style="background:white; padding:1.5rem; border-radius:12px; max-width:320px; width:90%; text-align:center;">
       <h3 style="margin:0 0 1rem;">Keypad Clock-In</h3>
       <input type="text" id="keypad-username" placeholder="Username" style="width:100%; padding:0.6rem; margin-bottom:0.5rem; box-sizing:border-box;">
       <input type="password" id="keypad-password" placeholder="Password" style="width:100%; padding:0.6rem; margin-bottom:0.75rem; box-sizing:border-box;">
-      <button type="button" id="keypad-login-submit" style="width:100%; margin-bottom:0.5rem; cursor:pointer;">Open Keypad</button>
-      <button type="button" id="keypad-cancel" style="width:100%; background:transparent; color:#64748b; cursor:pointer;">Cancel</button>
+      <button type="button" onclick="keypadLogin()" style="width:100%; margin-bottom:0.5rem; cursor:pointer; padding:0.6rem;">Open Keypad</button>
+      <button type="button" onclick="document.getElementById('keypad-modal').remove()" style="width:100%; background:transparent; color:#64748b; cursor:pointer; padding:0.6rem;">Cancel</button>
       <p id="kiosk-login-status" style="margin-top:0.75rem; font-size:0.9rem;"></p>
-    </form>
+    </div>
   `;
   document.body.appendChild(modal);
-  const btn = document.getElementById('keypad-login-submit');
-  btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); keypadLogin(); }, true);
-  document.getElementById('keypad-cancel').addEventListener('click', () => modal.remove(), true);
+  window.keypadLogin = keypadLogin;
   document.getElementById('keypad-username').focus();
 }
 
@@ -835,7 +833,7 @@ function hideKioskLoginPanel() {
   document.getElementById('kiosk-login-panel').style.display = 'none';
 }
 
-async function keypadLogin() {
+window.keypadLogin = async function keypadLogin() {
   const username = document.getElementById('keypad-username').value.trim().toLowerCase();
   const password = document.getElementById('keypad-password').value;
   const status = document.getElementById('kiosk-login-status');
