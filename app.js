@@ -1233,13 +1233,6 @@ async function loadSettings() {
       <input type="password" id="keypad-password-set" placeholder="Password (min 6 characters)" minlength="6" required>
       <button type="submit">Save keypad login</button>
     </form>
-    <h3 style="margin-top:2.5rem;">Change Admin Password</h3>
-    <p>Minimum 8 characters. This password is used to access the admin area from the kiosk.</p>
-    <form id="change-admin-pw" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
-      <input type="password" id="new-admin-pw" placeholder="New password" minlength="8" required>
-      <input type="password" id="confirm-admin-pw" placeholder="Confirm password" minlength="8" required>
-      <button type="submit">Update Admin Password</button>
-    </form>
   `;
   document.getElementById('save-holiday-year').onclick = async () => {
     if (!(await appConfirm('This will affect all holiday calculations. Confirm these changes?'))) return;
@@ -1301,7 +1294,7 @@ async function saveMemberNotifications(staffId) {
 }
 window.saveMemberNotifications = saveMemberNotifications;
   document.getElementById('logo-form').onsubmit = uploadLogo;
-  document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
+  document.getElementById('keypad-login-form').onsubmit = saveKeypadLogin;
   document.getElementById('keypad-login-form').onsubmit = saveKeypadLogin;
   document.querySelectorAll('.clock-style-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1330,19 +1323,6 @@ async function saveKeypadLogin(e) {
     return alert(error.message);
   }
   showStatus('Keypad login saved. Use these details on the tablet.', 'success');
-}
-
-function changeAdminPassword(e) {
-  e.preventDefault();
-  const newPw = document.getElementById('new-admin-pw').value;
-  const confirmPw = document.getElementById('confirm-admin-pw').value;
-  if (newPw.length < 8) return alert('Password must be at least 8 characters');
-  if (newPw !== confirmPw) return alert('Passwords do not match');
-  ADMIN_PASSWORD = newPw;
-  localStorage.setItem('admin_password', newPw);
-  alert('Admin password updated');
-  document.getElementById('new-admin-pw').value = '';
-  document.getElementById('confirm-admin-pw').value = '';
 }
 
 async function uploadLogo(e) {
