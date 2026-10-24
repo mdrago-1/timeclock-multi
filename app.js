@@ -338,10 +338,10 @@ function showPlanChoice() {
     `;
     document.body.appendChild(modal);
     document.getElementById('choose-essential').onclick = () => {
-      window.location.href = 'https://buy.stripe.com/test_cNi14n6N007t62sdmLdfG00';
+      window.location.href = 'https://buy.stripe.com/7sY7sL6T5cQTc0i3z17IY01';
     };
     document.getElementById('choose-full').onclick = () => {
-      window.location.href = 'https://buy.stripe.com/test_9B64gz3AO5rNgH696vdfG01';
+      window.location.href = 'https://buy.stripe.com/cNi6oH4KX3gj8O6c5x7IY00';
     };
     document.getElementById('plan-cancel').onclick = () => modal.style.display = 'none';
   }
@@ -371,7 +371,7 @@ function showPaywall(feature) {
     document.getElementById('paywall-close').onclick = () => modal.style.display = 'none';
     document.getElementById('paywall-upgrade').onclick = () => {
       // Replace with your real Stripe subscription Payment Link when ready
-      const subUrl = localStorage.getItem('subscription_url') || 'https://buy.stripe.com/test_9B64gz3AO5rNgH696vdfG01';
+      const subUrl = 'https://buy.stripe.com/cNi6oH4KX3gj8O6c5x7IY00';
       window.location.href = subUrl;
     };
   }
