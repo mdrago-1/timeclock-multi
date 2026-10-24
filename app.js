@@ -112,7 +112,7 @@ function setupEventListeners() {
     });
   });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
-  document.getElementById('kiosk-code-submit')?.addEventListener('click', kioskLoginWithCode);
+  document.getElementById('keypad-login-submit')?.addEventListener('click', keypadLogin);
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
   document.getElementById('exit-admin')?.addEventListener('click', showKiosk);
@@ -795,46 +795,30 @@ function hideKioskLoginPanel() {
   document.getElementById('kiosk-login-panel').style.display = 'none';
 }
 
-async function kioskLoginWithCode() {
-  const code = document.getElementById('kiosk-code-input').value.trim();
+async function keypadLogin() {
+  const username = document.getElementById('keypad-username').value.trim().toLowerCase();
+  const password = document.getElementById('keypad-password').value;
   const status = document.getElementById('kiosk-login-status');
-  if (code.length < 4) {
-    status.textContent = 'Enter the kiosk code';
+  if (username.length < 6 || password.length < 6) {
+    status.textContent = 'Username and password must be at least 6 characters';
     status.style.color = '#dc2626';
     return;
   }
   status.textContent = 'Checking…';
   status.style.color = '#64748b';
-
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/kiosk-login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-      body: JSON.stringify({ code })
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      status.textContent = data.error || 'Invalid kiosk code';
-      status.style.color = '#dc2626';
-      return;
-    }
-    // Set the session returned by the function
-    const { error } = await db.auth.setSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token
-    });
-    if (error) {
-      status.textContent = error.message;
-      status.style.color = '#dc2626';
-      return;
-    }
-    currentUser = data.user;
-    await refreshPaidStatus();
-    showKiosk();
-  } catch (err) {
-    status.textContent = 'Could not connect. Try again.';
+  const { data, error } = await db.from('profiles')
+    .select('id, keypad_password')
+    .eq('keypad_username', username)
+    .maybeSingle();
+  if (error || !data || data.keypad_password !== password) {
+    status.textContent = 'Incorrect username or password';
     status.style.color = '#dc2626';
+    return;
   }
+  window._keypadOwnerId = data.id;
+  currentUser = { id: data.id };
+  showKiosk();
+  status.textContent = '';
 }
 
 async function forgotPassword() {
@@ -1148,10 +1132,14 @@ async function loadSettings() {
 
     <h3 style="margin-top:2.5rem;">Kiosk Re-login Code</h3>
     <p>Staff can use this code to log the tablet back into the kiosk without the owner email and password. Choose a code of at least 4 characters.</p>
-    <form id="kiosk-code-form" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
-      <input type="text" id="kiosk-code" placeholder="Kiosk code (min 4 characters)" minlength="4" value="${profile?.kiosk_code || ''}" required>
-      <button type="submit">Save Kiosk Code</button>
+    <h3 style="margin-top:2rem;">Clock-In Keypad Login</h3>
+    <p style="color:#64748b; font-size:0.9rem;">Username and password for the tablet keypad. Username must be unique and at least 6 characters.</p>
+    <form id="keypad-login-form" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:0.5rem;">
+      <input type="text" id="keypad-username-set" placeholder="Username (min 6 characters)" minlength="6" value="${profile?.keypad_username || ''}" required>
+      <input type="password" id="keypad-password-set" placeholder="Password (min 6 characters)" minlength="6" required>
+      <button type="submit">Save keypad login</button>
     </form>
+    <h3>Clock Style</h3>
     <h3 style="margin-top:2.5rem;">Change Admin Password</h3>
     <p>Minimum 8 characters. This password is used to access the admin area from the kiosk.</p>
     <form id="change-admin-pw" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
@@ -1194,7 +1182,7 @@ async function saveMemberNotifications(staffId) {
 window.saveMemberNotifications = saveMemberNotifications;
   document.getElementById('logo-form').onsubmit = uploadLogo;
   document.getElementById('change-admin-pw').onsubmit = changeAdminPassword;
-  document.getElementById('kiosk-code-form').onsubmit = saveKioskCode;
+  document.getElementById('keypad-login-form').onsubmit = saveKeypadLogin;
   document.querySelectorAll('.clock-style-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       localStorage.setItem('clock_style', btn.dataset.style);
@@ -1205,19 +1193,23 @@ window.saveMemberNotifications = saveMemberNotifications;
   applyClockStyle();
 }
 
-async function saveKioskCode(e) {
+async function saveKeypadLogin(e) {
   e.preventDefault();
-  const code = document.getElementById('kiosk-code').value.trim();
-  if (code.length < 4) return alert('Code must be at least 4 characters');
-  const { error } = await db.from('profiles').update({ kiosk_code: code }).eq('id', currentUser.id);
+  const username = document.getElementById('keypad-username-set').value.trim().toLowerCase();
+  const password = document.getElementById('keypad-password-set').value;
+  if (username.length < 6) return alert('Username must be at least 6 characters');
+  if (password.length < 6) return alert('Password must be at least 6 characters');
+  const { error } = await db.from('profiles').update({
+    keypad_username: username,
+    keypad_password: password
+  }).eq('id', currentUser.id);
   if (error) {
     if (error.code === '23505' || /unique|duplicate/i.test(error.message)) {
-      return alert('That kiosk code is already in use by another shop. Please choose a different one.');
+      return alert('That username is already taken. Please choose another.');
     }
     return alert(error.message);
   }
-  window._kioskAccessCode = code;
-  alert('Access code saved. Use this code to open Admin from the keypad.');
+  alert('Keypad login saved. Use these details on the tablet.');
 }
 
 function changeAdminPassword(e) {
