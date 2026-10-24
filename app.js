@@ -113,7 +113,8 @@ function setupEventListeners() {
   });
   document.getElementById('chooser-keypad-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('chooser-admin-btn')?.addEventListener('click', showAuth);
-  document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
+  document.getElementById('passkey-login-btn')?.addEventListener('click', signInWithPasskey);
+  document.getElementById('add-passkey-btn')?.addEventListener('click', registerPasskey);
   document.getElementById('keypad-admin-btn')?.addEventListener('click', () => {
     window._keypadOwnerId = null;
     currentUser = null;
@@ -1202,6 +1203,10 @@ async function loadSettings() {
       <button type="button" onclick="setGeofenceAddress()">Set location</button>
       <p id="geofence-status" style="font-size:0.85rem; color:#64748b; margin-top:0.3rem;"></p>
     </div>
+    <h3 style="margin-top:1.5rem;">Passkey</h3>
+    <p style="color:#64748b; font-size:0.9rem;">Add a passkey so you can sign in with fingerprint, face, or device PIN.</p>
+    <button type="button" id="add-passkey-btn" style="margin:0.5rem 0 1rem;">Add passkey</button>
+    <p id="passkey-status" style="font-size:0.85rem; color:#64748b;"></p>
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
@@ -1306,7 +1311,28 @@ window.saveMemberNotifications = saveMemberNotifications;
   applyClockStyle();
 }
 
-async function saveKeypadLogin(e) {
+async function registerPasskey() {
+  const status = document.getElementById('passkey-status');
+  status.textContent = 'Follow the prompt…';
+  const { data, error } = await db.auth.registerPasskey();
+  if (error) {
+    status.textContent = error.message || 'Could not add passkey';
+    status.style.color = '#dc2626';
+    return;
+  }
+  status.textContent = 'Passkey added';
+  status.style.color = '#16a34a';
+}
+window.registerPasskey = registerPasskey;
+
+async function signInWithPasskey() {
+  const { data, error } = await db.auth.signInWithPasskey();
+  if (error) return alert(error.message || 'Passkey sign-in failed');
+  currentUser = data.user;
+  await refreshPaidStatus();
+  showAdmin();
+}
+window.signInWithPasskey = signInWithPasskey;
   e.preventDefault();
   const username = document.getElementById('keypad-username-set').value.trim().toLowerCase();
   const password = document.getElementById('keypad-password-set').value;
