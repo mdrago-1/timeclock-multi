@@ -111,6 +111,8 @@ function setupEventListeners() {
       document.getElementById('forgot-modal').style.display = 'none';
     });
   });
+  document.getElementById('chooser-keypad-btn')?.addEventListener('click', showKioskLoginPanel);
+  document.getElementById('chooser-admin-btn')?.addEventListener('click', showAuth);
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('keypad-admin-btn')?.addEventListener('click', () => {
     window._keypadOwnerId = null;
@@ -382,24 +384,7 @@ async function updatePasswordFromReset(e) {
 
 function showChooser() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  let screen = document.getElementById('chooser-screen');
-  if (screen) screen.remove();
-  screen = document.createElement('div');
-  screen.id = 'chooser-screen';
-  screen.className = 'screen active';
-  screen.style.zIndex = '1';
-  screen.innerHTML = `
-    <div class="logo" style="text-align:center; margin-top:3rem;">
-      <h1>Time Rogue</h1>
-    </div>
-    <div style="display:flex; flex-direction:column; gap:1rem; max-width:280px; margin:2rem auto;">
-      <button type="button" id="chooser-keypad-btn" style="padding:1rem;">Keypad Clock-In</button>
-      <button type="button" id="chooser-admin-btn" style="padding:1rem; background:white; color:#0f172a;">Admin</button>
-    </div>
-  `;
-  document.getElementById('app').appendChild(screen);
-  document.getElementById('chooser-keypad-btn').addEventListener('click', showKioskLoginPanel);
-  document.getElementById('chooser-admin-btn').addEventListener('click', showAuth);
+  document.getElementById('chooser-screen').classList.add('active');
 }
 window.showChooser = showChooser;
 
