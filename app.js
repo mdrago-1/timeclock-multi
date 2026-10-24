@@ -323,6 +323,7 @@ function showAuth() {
   document.getElementById('auth-screen').classList.add('active');
   updateShopLogo();
 }
+window.showAuth = showAuth;
 
 function showPasswordResetForm() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -382,26 +383,23 @@ async function updatePasswordFromReset(e) {
 function showChooser() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   let screen = document.getElementById('chooser-screen');
-  if (!screen) {
-    screen = document.createElement('div');
-    screen.id = 'chooser-screen';
-    screen.className = 'screen';
-    screen.innerHTML = `
-      <div class="logo" style="text-align:center; margin-top:3rem;">
-        <h1>Time Rogue</h1>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:1rem; max-width:280px; margin:2rem auto;">
-        <button type="button" id="chooser-keypad" style="padding:1rem;">Keypad Clock-In</button>
-        <button type="button" id="chooser-admin" style="padding:1rem; background:white; color:#0f172a;">Admin</button>
-      </div>
-    `;
-    document.getElementById('app').appendChild(screen);
-    document.getElementById('chooser-keypad').onclick = showKioskLoginPanel;
-    document.getElementById('chooser-admin').onclick = showAuth;
-  }
-  screen.classList.add('active');
+  if (screen) screen.remove();
+  screen = document.createElement('div');
+  screen.id = 'chooser-screen';
+  screen.className = 'screen active';
+  screen.innerHTML = `
+    <div class="logo" style="text-align:center; margin-top:3rem;">
+      <h1>Time Rogue</h1>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:1rem; max-width:280px; margin:2rem auto;">
+      <button type="button" onclick="showKioskLoginPanel()" style="padding:1rem;">Keypad Clock-In</button>
+      <button type="button" onclick="showAuth()" style="padding:1rem; background:white; color:#0f172a;">Admin</button>
+    </div>
+  `;
+  document.getElementById('app').appendChild(screen);
 }
 window.showChooser = showChooser;
+window.showKioskLoginPanel = showKioskLoginPanel;
 
 function showKiosk() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
