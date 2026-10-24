@@ -111,7 +111,11 @@ function setupEventListeners() {
       document.getElementById('forgot-modal').style.display = 'none';
     });
   });
-  document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
+  document.getElementById('keypad-admin-btn')?.addEventListener('click', () => {
+    window._keypadOwnerId = null;
+    currentUser = null;
+    showAuth();
+  });
   document.getElementById('keypad-login-submit')?.addEventListener('click', keypadLogin);
   document.getElementById('keypad-cancel')?.addEventListener('click', () => {
     document.getElementById('keypad-modal').style.display = 'none';
