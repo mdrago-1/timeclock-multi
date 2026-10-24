@@ -11,38 +11,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     applyClockStyle();
 
-    // Listen for password recovery event from Supabase
+    // Check for recovery in the URL first (before anything else)
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const isRecovery = hash.includes('type=recovery') || hash.includes('access_token') || search.includes('type=recovery');
+
+    // Listen for the recovery event
+    let recoveryHandled = false;
     db.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' && session) {
+      if (event === 'PASSWORD_RECOVERY' && session && !recoveryHandled) {
+        recoveryHandled = true;
         currentUser = session.user;
         showPasswordResetForm();
         history.replaceState(null, '', window.location.pathname);
       }
     });
 
-    // Also check the hash directly
-    const hash = window.location.hash || '';
-    const isRecovery = hash.includes('type=recovery') || hash.includes('access_token');
-
     if (isRecovery) {
-      // Give Supabase a moment to process the hash
-      await new Promise(r => setTimeout(r, 300));
-      const { data: { session } } = await db.auth.getSession();
-      if (session) {
-        currentUser = session.user;
-        showPasswordResetForm();
-        history.replaceState(null, '', window.location.pathname);
-        return;
+      // Wait a bit for Supabase to process the recovery token
+      await new Promise(r => setTimeout(r, 500));
+      if (!recoveryHandled) {
+        const { data: { session } } = await db.auth.getSession();
+        if (session) {
+          recoveryHandled = true;
+          currentUser = session.user;
+          showPasswordResetForm();
+          history.replaceState(null, '', window.location.pathname);
+          return;
+        }
       }
     }
 
-    const { data: { session } } = await db.auth.getSession();
-    if (session) {
-      currentUser = session.user;
-      await refreshPaidStatus();
-      showKiosk();
-    } else {
-      showAuth();
+    // Normal startup only if we didn't handle recovery
+    if (!recoveryHandled) {
+      const { data: { session } } = await db.auth.getSession();
+      if (session) {
+        currentUser = session.user;
+        await refreshPaidStatus();
+        showKiosk();
+      } else {
+        showAuth();
+      }
     }
   } catch (err) {
     console.error('Startup error:', err);
