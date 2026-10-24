@@ -85,7 +85,10 @@ function setupEventListeners() {
   if (authForm) {
     authForm.onsubmit = (e) => { e.preventDefault(); login(e); return false; };
   }
-  document.getElementById('signup-btn')?.addEventListener('click', showPlanChoice);
+  document.getElementById('hero-signup')?.addEventListener('click', showPlanChoice);
+  document.getElementById('hero-login')?.addEventListener('click', () => {
+    document.getElementById('login-modal').style.display = 'flex';
+  });
   document.getElementById('login-btn')?.addEventListener('click', () => {
     const m = document.getElementById('login-modal');
     if (m) m.style.display = 'flex';
