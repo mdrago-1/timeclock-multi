@@ -85,8 +85,8 @@ function setupEventListeners() {
   if (authForm) {
     authForm.onsubmit = (e) => { e.preventDefault(); login(e); return false; };
   }
-  document.getElementById('signup-btn')?.addEventListener('click', showPlanChoice);
-  document.getElementById('hero-signup')?.addEventListener('click', showPlanChoice);
+  document.getElementById('signup-btn')?.addEventListener('click', showSignup);
+  document.getElementById('hero-signup')?.addEventListener('click', showSignup);
   document.getElementById('hero-login')?.addEventListener('click', () => {
     document.getElementById('login-modal').style.display = 'flex';
   });
@@ -164,20 +164,28 @@ function setupEventListeners() {
       tab.classList.add('active');
       const content = document.getElementById(tab.dataset.tab + '-tab');
       if (content) content.classList.add('active');
-      if (tab.dataset.tab === 'timesheets') loadTimesheets();
-      if (tab.dataset.tab === 'staff') loadStaff();
-      if (tab.dataset.tab === 'schedule') {
+      if (tab.dataset.tab === 'timesheets') {
+        if (!isPaid()) { showPlanChoice(); return; }
+        loadTimesheets();
+      }
+      if (tab.dataset.tab === 'staff') {
+        if (!isPaid()) { showPlanChoice(); return; }
+        loadStaff();
+      }
+      if (tab.dataset.tab === 'schedule' || tab.dataset.tab === 'holiday' || tab.dataset.tab === 'statutory') {
         if (!hasSubscription()) {
-          showPaywall('Scheduling');
-          // Switch back to staff tab
-          document.querySelector('.tab[data-tab="staff"]').click();
+          showPaywall(tab.dataset.tab === 'schedule' ? 'Scheduling' : tab.dataset.tab === 'holiday' ? 'Holiday' : 'Statutory documents');
+          document.querySelector('.tab[data-tab="staff"]')?.classList.add('active');
+          tab.classList.remove('active');
+          document.getElementById('staff-tab')?.classList.add('active');
+          if (content) content.classList.remove('active');
           return;
         }
-        loadSchedule();
+        if (tab.dataset.tab === 'schedule') loadSchedule();
+        if (tab.dataset.tab === 'holiday') loadHoliday();
+        if (tab.dataset.tab === 'statutory') loadStatutory();
       }
-      if (tab.dataset.tab === 'holiday') loadHoliday();
       if (tab.dataset.tab === 'settings') loadSettings();
-      if (tab.dataset.tab === 'statutory') loadStatutory();
     });
   });
 }
@@ -185,27 +193,71 @@ function setupEventListeners() {
 let isUserPaid = false;
 
 async function refreshPaidStatus() {
-  if (!currentUser) { isUserPaid = false; return; }
-  const { data } = await db.from('profiles').select('paid, subscription_until, kiosk_code').eq('id', currentUser.id).single();
-  const now = new Date();
-  const trialActive = data?.subscription_until && new Date(data.subscription_until) > now;
-  isUserPaid = !!(data?.paid && trialActive) || !!(data?.subscription_until && new Date(data.subscription_until) > now);
-  window._subscriptionActive = trialActive || !!(data?.subscription_until && new Date(data.subscription_until) > now);
+  if (!currentUser) {
+    isUserPaid = false;
+    window._subscriptionActive = false;
+    window._inTrial = false;
+    return;
+  }
+  let { data, error } = await db.from('profiles')
+    .select('paid, subscription_until, kiosk_code, trial_ends_at, plan, subscription_status, essential_paid')
+    .eq('id', currentUser.id)
+    .single();
+  if (error) {
+    const fallback = await db.from('profiles').select('paid, subscription_until, kiosk_code').eq('id', currentUser.id).single();
+    data = fallback.data || {};
+  }
   window._kioskAccessCode = data?.kiosk_code || '1234';
 
-  if (!data?.paid && currentUser.email) {
-    const { data: pending } = await db.from('pending_payments').select('paid').eq('email', currentUser.email.toLowerCase()).maybeSingle();
-    if (pending?.paid) {
-      const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 14);
-      await db.from('profiles').update({ 
-        paid: true, 
-        subscription_until: trialEnd.toISOString() 
-      }).eq('id', currentUser.id);
-      isUserPaid = true;
-      window._subscriptionActive = true;
+  if (currentUser.email) {
+    const { data: pending } = await db.from('pending_payments').select('paid, plan').eq('email', currentUser.email.toLowerCase()).maybeSingle();
+    if (pending && (pending.paid || pending.plan === 'expired' || pending.plan === 'essential' || pending.plan === 'full')) {
+      let patch = null;
+      if (pending.plan === 'full' && pending.paid) {
+        const until = new Date();
+        until.setDate(until.getDate() + 32);
+        patch = { plan: 'full', paid: true, subscription_status: 'active', subscription_until: until.toISOString() };
+      } else if (pending.plan === 'essential' && pending.paid) {
+        patch = { plan: 'essential', paid: true, essential_paid: true, subscription_status: null };
+      } else if (pending.plan === 'expired' || pending.paid === false) {
+        patch = data?.essential_paid
+          ? { plan: 'essential', paid: true, subscription_status: 'canceled' }
+          : { plan: 'expired', paid: false, subscription_status: 'canceled' };
+      } else if (pending.paid) {
+        patch = { plan: 'essential', paid: true, essential_paid: true };
+      }
+      if (patch) {
+        const upd = await db.from('profiles').update(patch).eq('id', currentUser.id);
+        if (!upd.error) {
+          data = { ...data, ...patch };
+          await db.from('pending_payments').delete().eq('email', currentUser.email.toLowerCase());
+        }
+      }
     }
   }
+
+  if (!data?.trial_ends_at && !data?.paid && data?.plan !== 'essential' && data?.plan !== 'full' && data?.plan !== 'expired') {
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + 14);
+    const patch = { trial_ends_at: trialEnd.toISOString(), plan: 'trial' };
+    const upd = await db.from('profiles').update(patch).eq('id', currentUser.id);
+    if (!upd.error) data = { ...data, ...patch };
+  }
+
+  const now = new Date();
+  const trialEnd = data?.trial_ends_at ? new Date(data.trial_ends_at) : null;
+  const until = data?.subscription_until ? new Date(data.subscription_until) : null;
+  const plan = data?.plan || null;
+  const subActive = data?.subscription_status === 'active' || data?.subscription_status === 'trialing';
+  const essentialPaid = !!(data?.essential_paid || plan === 'essential' || (data?.paid && plan !== 'full'));
+  const legacyBonus = !plan && !!data?.paid && until && until > now;
+  const inTrial = plan === 'trial' && !!trialEnd && trialEnd > now;
+  const full = (plan === 'full' && (subActive || (!!until && until > now))) || inTrial || legacyBonus;
+  isUserPaid = full || essentialPaid;
+  window._subscriptionActive = full;
+  window._inTrial = inTrial;
+  window._trialEnds = trialEnd;
+  window._plan = full ? 'full' : (isUserPaid ? 'essential' : 'expired');
 }
 
 function isPaid() {
@@ -254,7 +306,8 @@ function showPlanChoice() {
     modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; padding:1rem;';
     modal.innerHTML = `
       <div style="background:#f8fafc; border-radius:12px; padding:1.5rem; max-width:680px; width:100%;">
-        <h3 style="text-align:center; margin:0 0 1.25rem; color:#0f172a;">Choose your plan</h3>
+        <h3 style="text-align:center; margin:0 0 0.5rem; color:#0f172a;">Choose your plan</h3>
+        <p style="text-align:center; color:#64748b; margin:0 0 1.25rem;">The 14-day trial includes everything. After that, pick one of these. One site only.</p>
         <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
           <div style="flex:1; min-width:260px; background:white; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
             <h3 style="margin:0 0 0.5rem;">Essential</h3>
@@ -428,8 +481,36 @@ function checkAdminPassword(e) {
 function showAdmin() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('admin-screen').classList.add('active');
+  renderTrialBanner();
+  if (!isPaid()) {
+    showPlanChoice();
+    return;
+  }
   loadStaff();
   updateShopLogo();
+}
+
+function renderTrialBanner() {
+  const admin = document.getElementById('admin-screen');
+  if (!admin) return;
+  let bar = document.getElementById('trial-banner');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'trial-banner';
+    admin.prepend(bar);
+  }
+  if (window._inTrial && window._trialEnds) {
+    const days = Math.max(1, Math.ceil((window._trialEnds - new Date()) / 86400000));
+    bar.style.cssText = 'background:#0f172a; color:white; padding:0.75rem 1rem; display:flex; gap:0.75rem; align-items:center; justify-content:space-between; flex-wrap:wrap;';
+    bar.innerHTML = `<span>Full trial: ${days} day${days === 1 ? '' : 's'} left. Then choose Essentials (£19.95 once) or Full (£9.95/month).</span><button type="button" id="trial-choose" style="background:white; color:#0f172a;">Choose plan</button>`;
+    document.getElementById('trial-choose').onclick = showPlanChoice;
+  } else if (!isUserPaid) {
+    bar.style.cssText = 'background:#0f172a; color:white; padding:0.75rem 1rem; display:flex; gap:0.75rem; align-items:center; justify-content:space-between; flex-wrap:wrap;';
+    bar.innerHTML = `<span>Your trial has ended. Essentials keeps clock-in and timesheets. Full keeps everything.</span><button type="button" id="trial-choose" style="background:white; color:#0f172a;">Choose plan</button>`;
+    document.getElementById('trial-choose').onclick = showPlanChoice;
+  } else {
+    bar.style.display = 'none';
+  }
 }
 
 function showMemberLogin() {
@@ -799,13 +880,46 @@ async function login(e) {
 }
 
 async function signup() {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
+  const email = document.getElementById('signup-email')?.value?.trim() || document.getElementById('email')?.value?.trim();
+  const password = document.getElementById('signup-password')?.value || document.getElementById('password')?.value;
   if (!email || !password) return alert('Enter email and password');
-  const { error } = await db.auth.signUp({ email, password });
+  if (password.length < 8) return alert('Password must be at least 8 characters');
+  const { data, error } = await db.auth.signUp({ email, password });
   if (error) return alert(error.message);
-  alert('Account created! Check your email to confirm, then log in.');
+  const modal = document.getElementById('signup-modal');
+  if (modal) modal.style.display = 'none';
+  if (data.session) {
+    currentUser = data.user;
+    await refreshPaidStatus();
+    showAdmin();
+    return;
+  }
+  alert('Account created. Check your email to confirm, then log in. Your 14-day trial starts when you first log in.');
 }
+
+function showSignup() {
+  let modal = document.getElementById('signup-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'signup-modal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; padding:1rem;';
+    modal.innerHTML = `
+      <div style="background:white; border-radius:12px; padding:1.5rem; max-width:380px; width:100%;">
+        <h3 style="margin:0 0 0.5rem; text-align:center;">Start your 14-day trial</h3>
+        <p style="color:#64748b; font-size:0.9rem; text-align:center; margin:0 0 1rem;">Everything is included. No card needed. After 14 days, choose Essentials (£19.95 once) or Full (£9.95/month).</p>
+        <input type="email" id="signup-email" placeholder="Email" style="width:100%; padding:0.6rem; margin-bottom:0.5rem; box-sizing:border-box;">
+        <input type="password" id="signup-password" placeholder="Password (min 8 characters)" style="width:100%; padding:0.6rem; margin-bottom:0.75rem; box-sizing:border-box;">
+        <button type="button" id="signup-submit" style="width:100%; margin-bottom:0.5rem;">Create account</button>
+        <button type="button" id="signup-cancel" style="width:100%; background:transparent; color:#64748b;">Cancel</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('signup-submit').onclick = signup;
+    document.getElementById('signup-cancel').onclick = () => { modal.style.display = 'none'; };
+  }
+  modal.style.display = 'flex';
+}
+window.showSignup = showSignup;
 
 function showKioskLoginPanel() {
   const modal = document.getElementById('keypad-modal');
@@ -930,8 +1044,9 @@ async function showActions() {
 }
 
 async function recordAction(type) {
-  // Geofence check only for keypad clock in/out
   if (window._keypadOwnerId && (type === 'in' || type === 'out')) {
+    const { data: allowed } = await db.rpc('keypad_can_clock', { p_owner_id: window._keypadOwnerId });
+    if (allowed === false) return showStatus('Clock-in is locked. The site trial has ended or the plan does not include it.', 'error');
     const { data: geo } = await db.rpc('keypad_geofence', { p_owner_id: window._keypadOwnerId });
     if (geo?.geofence_enabled && geo.geofence_lat && geo.geofence_lng) {
       const ok = await checkGeofence(geo.geofence_lat, geo.geofence_lng);
