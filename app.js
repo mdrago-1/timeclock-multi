@@ -1197,16 +1197,13 @@ async function loadSettings() {
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
 
-    <h3 style="margin-top:2.5rem;">Kiosk Re-login Code</h3>
-    <p>Staff can use this code to log the tablet back into the kiosk without the owner email and password. Choose a code of at least 4 characters.</p>
     <h3 style="margin-top:2rem;">Clock-In Keypad Login</h3>
-    <p style="color:#64748b; font-size:0.9rem;">Username and password for the tablet keypad. Username must be unique and at least 6 characters.</p>
+    <p style="color:#64748b; font-size:0.9rem;">Set a username and password for the tablet. Staff use these to open the clock-in keypad without the owner login. Username must be unique and at least 6 characters.</p>
     <form id="keypad-login-form" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:0.5rem;">
       <input type="text" id="keypad-username-set" placeholder="Username (min 6 characters)" minlength="6" value="${profile?.keypad_username || ''}" required>
       <input type="password" id="keypad-password-set" placeholder="Password (min 6 characters)" minlength="6" required>
       <button type="submit">Save keypad login</button>
     </form>
-    <h3>Clock Style</h3>
     <h3 style="margin-top:2.5rem;">Change Admin Password</h3>
     <p>Minimum 8 characters. This password is used to access the admin area from the kiosk.</p>
     <form id="change-admin-pw" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:1rem;">
@@ -1216,6 +1213,7 @@ async function loadSettings() {
     </form>
   `;
   document.getElementById('save-holiday-year').onclick = async () => {
+    if (!(await appConfirm('This will affect all holiday calculations. Confirm these changes?'))) return;
     const val = document.getElementById('holiday-year-start').value.trim() || '01-01';
     const { error } = await db.from('profiles').update({ holiday_year_start: val }).eq('id', currentUser.id);
     if (error) return alert('Could not save: ' + error.message);
@@ -1276,7 +1274,7 @@ async function saveKeypadLogin(e) {
     }
     return alert(error.message);
   }
-  alert('Keypad login saved. Use these details on the tablet.');
+  showStatus('Keypad login saved. Use these details on the tablet.', 'success');
 }
 
 function changeAdminPassword(e) {
