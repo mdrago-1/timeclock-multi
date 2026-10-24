@@ -1178,6 +1178,11 @@ async function loadSettings() {
       <input type="checkbox" id="notify-holiday" ${profile?.notify_holiday_request ? 'checked' : ''} onchange="saveAdminNotifications()">
       New holiday requests
     </label>
+    <h3 style="margin-top:1.5rem;">Geofencing</h3>
+    <label style="display:flex; align-items:center; gap:0.5rem; margin:0.5rem 0 1rem;">
+      <input type="checkbox" id="geofence-enabled" ${profile?.geofence_enabled ? 'checked' : ''} onchange="saveGeofence()">
+      Geofencing (When off this allows remote clocking in and out)
+    </label>
     <h3>Clock Style</h3>
     <p>Choose how the time appears on the kiosk screen.</p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin:1rem 0 0.5rem;">
@@ -1236,7 +1241,10 @@ async function saveAdminNotifications() {
     try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
   }
 }
-window.saveAdminNotifications = saveAdminNotifications;
+window.saveGeofence = async function() {
+  const enabled = document.getElementById('geofence-enabled').checked;
+  await db.from('profiles').update({ geofence_enabled: enabled }).eq('id', currentUser.id);
+};
 
 async function saveMemberNotifications(staffId) {
   const holiday = document.getElementById('notify-holiday-result').checked;
