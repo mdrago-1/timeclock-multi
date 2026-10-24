@@ -843,6 +843,7 @@ async function keypadLogin() {
   const username = document.getElementById('keypad-username').value.trim().toLowerCase();
   const password = document.getElementById('keypad-password').value;
   const status = document.getElementById('kiosk-login-status');
+  if (!status) return alert('Status element missing');
   if (username.length < 6 || password.length < 6) {
     status.textContent = 'Username and password must be at least 6 characters';
     status.style.color = '#dc2626';
@@ -850,20 +851,30 @@ async function keypadLogin() {
   }
   status.textContent = 'Checking…';
   status.style.color = '#64748b';
-  const { data, error } = await db.from('profiles')
-    .select('id, keypad_password')
-    .eq('keypad_username', username)
-    .maybeSingle();
-  if (error || !data || data.keypad_password !== password) {
-    status.textContent = 'Incorrect username or password';
+  try {
+    const { data, error } = await db.from('profiles')
+      .select('id, keypad_password')
+      .eq('keypad_username', username)
+      .maybeSingle();
+    if (error) {
+      status.textContent = 'Error: ' + error.message;
+      status.style.color = '#dc2626';
+      return;
+    }
+    if (!data || data.keypad_password !== password) {
+      status.textContent = 'Incorrect username or password';
+      status.style.color = '#dc2626';
+      return;
+    }
+    window._keypadOwnerId = data.id;
+    currentUser = { id: data.id };
+    document.getElementById('keypad-modal').style.display = 'none';
+    showKiosk();
+    status.textContent = '';
+  } catch (err) {
+    status.textContent = 'Failed: ' + err.message;
     status.style.color = '#dc2626';
-    return;
   }
-  window._keypadOwnerId = data.id;
-  currentUser = { id: data.id };
-  document.getElementById('keypad-modal').style.display = 'none';
-  showKiosk();
-  status.textContent = '';
 }
 
 async function forgotPassword() {
