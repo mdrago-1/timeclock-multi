@@ -170,13 +170,12 @@ let isUserPaid = false;
 
 async function refreshPaidStatus() {
   if (!currentUser) { isUserPaid = false; return; }
-  const { data } = await db.from('profiles').select('paid, subscription_until').eq('id', currentUser.id).single();
+  const { data } = await db.from('profiles').select('paid, subscription_until, kiosk_code').eq('id', currentUser.id).single();
   const now = new Date();
   const trialActive = data?.subscription_until && new Date(data.subscription_until) > now;
   isUserPaid = !!(data?.paid && trialActive) || !!(data?.subscription_until && new Date(data.subscription_until) > now);
-  // Also honour a simple paid flag for the one-off (clock/timesheets always available if paid)
-  // For subscription features we use the trial/subscription window
   window._subscriptionActive = trialActive || !!(data?.subscription_until && new Date(data.subscription_until) > now);
+  window._kioskAccessCode = data?.kiosk_code || '1234';
 
   if (!data?.paid && currentUser.email) {
     const { data: pending } = await db.from('pending_payments').select('paid').eq('email', currentUser.email.toLowerCase()).maybeSingle();
@@ -386,20 +385,20 @@ function showAdminPassword() {
   if (pwInput) {
     pwInput.value = '';
     pwInput.minLength = 8;
-    pwInput.placeholder = 'Admin password (min 8 characters)';
+    pwInput.placeholder = 'Access code';
+    pwInput.minLength = 4;
   }
 }
 
 function checkAdminPassword(e) {
   e.preventDefault();
   const pw = document.getElementById('admin-password').value;
-  if (pw.length < 8) {
-    return alert('Password must be at least 8 characters');
-  }
-  if (pw === ADMIN_PASSWORD) {
+  // Use the kiosk access code stored in profile, or fall back to default
+  const code = window._kioskAccessCode || '1234';
+  if (pw === code) {
     showAdmin();
   } else {
-    alert('Incorrect password');
+    alert('Incorrect access code');
   }
 }
 
@@ -764,7 +763,7 @@ async function login(e) {
     }
     currentUser = data.user;
     await refreshPaidStatus();
-    showKiosk();
+    showAdmin();
   } catch (err) {
     console.error('Login error:', err);
     alert('Login failed. Please check your connection and try again.');
@@ -1217,7 +1216,8 @@ async function saveKioskCode(e) {
     }
     return alert(error.message);
   }
-  alert('Kiosk code saved. Staff can use this to re-login the tablet.');
+  window._kioskAccessCode = code;
+  alert('Access code saved. Use this code to open Admin from the keypad.');
 }
 
 function changeAdminPassword(e) {
