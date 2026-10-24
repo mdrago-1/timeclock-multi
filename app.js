@@ -1338,6 +1338,8 @@ async function signInWithPasskey() {
   showAdmin();
 }
 window.signInWithPasskey = signInWithPasskey;
+
+async function saveKeypadLogin(e) {
   e.preventDefault();
   const username = document.getElementById('keypad-username-set').value.trim().toLowerCase();
   const password = document.getElementById('keypad-password-set').value;
