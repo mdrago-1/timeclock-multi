@@ -937,6 +937,14 @@ async function showActions() {
 }
 
 async function recordAction(type) {
+  // Geofence check only for keypad clock in/out
+  if (window._keypadOwnerId && (type === 'in' || type === 'out')) {
+    const { data: geo } = await db.rpc('keypad_geofence', { p_owner_id: window._keypadOwnerId });
+    if (geo?.geofence_enabled && geo.geofence_lat && geo.geofence_lng) {
+      const ok = await checkGeofence(geo.geofence_lat, geo.geofence_lng);
+      if (!ok) return showStatus('You must be within 50m of the workplace to clock ' + type, 'error');
+    }
+  }
   let error = null;
   if (window._keypadOwnerId) {
     const res = await db.rpc('keypad_clock', {
@@ -957,6 +965,25 @@ async function recordAction(type) {
   if (error) return showStatus('Error recording', 'error');
   showStatus(`${currentStaff.name} recorded`);
   setTimeout(showPin, 1500);
+}
+
+function checkGeofence(lat, lng) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(false);
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const d = haversine(lat, lng, pos.coords.latitude, pos.coords.longitude);
+      resolve(d <= 50);
+    }, () => resolve(false), { enableHighAccuracy: true, timeout: 8000 });
+  });
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
 function showStatus(msg, type = '') {
@@ -1243,7 +1270,21 @@ async function saveAdminNotifications() {
 }
 window.saveGeofence = async function() {
   const enabled = document.getElementById('geofence-enabled').checked;
-  await db.from('profiles').update({ geofence_enabled: enabled }).eq('id', currentUser.id);
+  if (enabled && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      await db.from('profiles').update({
+        geofence_enabled: true,
+        geofence_lat: pos.coords.latitude,
+        geofence_lng: pos.coords.longitude
+      }).eq('id', currentUser.id);
+      alert('Geofencing on. Location set to your current position (50m radius).');
+    }, () => {
+      alert('Could not get location. Geofencing not enabled.');
+      document.getElementById('geofence-enabled').checked = false;
+    });
+  } else {
+    await db.from('profiles').update({ geofence_enabled: false }).eq('id', currentUser.id);
+  }
 };
 
 async function saveMemberNotifications(staffId) {
