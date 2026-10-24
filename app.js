@@ -95,9 +95,6 @@ function setupEventListeners() {
     if (m) m.style.display = 'flex';
   });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
-    const m = document.getElementById('login-modal');
-    if (m) m.style.display = 'flex';
-  });
   document.getElementById('login-cancel')?.addEventListener('click', () => {
     const m = document.getElementById('login-modal');
     if (m) m.style.display = 'none';
