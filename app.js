@@ -115,10 +115,10 @@ function setupEventListeners() {
   document.getElementById('keypad-login-submit')?.addEventListener('click', keypadLogin);
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
-  document.getElementById('exit-admin')?.addEventListener('click', showKiosk);
+  document.getElementById('exit-admin')?.addEventListener('click', showChooser);
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
   document.getElementById('member-btn')?.addEventListener('click', showMemberLogin);
-  document.getElementById('cancel-admin')?.addEventListener('click', showKiosk);
+  document.getElementById('cancel-admin')?.addEventListener('click', showChooser);
   document.getElementById('cancel-member')?.addEventListener('click', showKiosk);
   document.getElementById('exit-member')?.addEventListener('click', showKiosk);
 
@@ -370,6 +370,30 @@ async function updatePasswordFromReset(e) {
     showKiosk();
   }, 1200);
 }
+
+function showChooser() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  let screen = document.getElementById('chooser-screen');
+  if (!screen) {
+    screen = document.createElement('div');
+    screen.id = 'chooser-screen';
+    screen.className = 'screen';
+    screen.innerHTML = `
+      <div class="logo" style="text-align:center; margin-top:3rem;">
+        <h1>Time Rogue</h1>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:1rem; max-width:280px; margin:2rem auto;">
+        <button type="button" id="chooser-keypad" style="padding:1rem;">Keypad Clock-In</button>
+        <button type="button" id="chooser-admin" style="padding:1rem; background:white; color:#0f172a;">Admin</button>
+      </div>
+    `;
+    document.getElementById('app').appendChild(screen);
+    document.getElementById('chooser-keypad').onclick = showKioskLoginPanel;
+    document.getElementById('chooser-admin').onclick = showAuth;
+  }
+  screen.classList.add('active');
+}
+window.showChooser = showChooser;
 
 function showKiosk() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
