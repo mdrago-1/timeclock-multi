@@ -664,6 +664,15 @@ function showMemberPortal(staff) {
   }
   content.innerHTML = `
     <h2>${staff.name}</h2>
+    <div style="margin:1rem 0; padding:0.9rem 1rem; border:1px solid #e2e8f0; border-radius:8px; max-width:420px; text-align:left;">
+      <strong>Clock-in code</strong>
+      <p style="font-size:1.4rem; letter-spacing:0.2em; margin:0.4rem 0;">${staff.pin || '—'}</p>
+      <p style="font-size:0.8rem; color:#64748b; margin:0 0 0.6rem;">This code is not encrypted. Your manager can see it.</p>
+      <form id="member-pin-form" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <input type="text" id="member-new-pin" inputmode="numeric" maxlength="4" placeholder="New 4-digit code" style="width:160px;">
+        <button type="submit">Update code</button>
+      </form>
+    </div>
     ${formSection}
     <h3 style="margin-top:2rem;">Notifications</h3>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0;">
@@ -681,6 +690,7 @@ function showMemberPortal(staff) {
   if (!staff.starter_form_completed) {
     document.getElementById('starter-form').onsubmit = (e) => submitStarterForm(e, staff.id);
   }
+  document.getElementById('member-pin-form').onsubmit = (e) => updateMyPin(e, staff.id);
   loadMemberShifts(staff.name);
   loadMemberHours(staff.id);
 }
@@ -828,6 +838,28 @@ async function submitStarterForm(e, staffId) {
   };
   const { error } = await db.from('staff').update(updates).eq('id', staffId);
   if (error) return alert(error.message);
+  const { data: row } = await db.from('staff').select('owner_id').eq('id', staffId).single();
+  const ownerId = row?.owner_id;
+  const uploads = [
+    [document.getElementById('sf-p45-file')?.files[0], 'p45'],
+    [document.getElementById('sf-id-file')?.files[0], 'photo_id']
+  ];
+  for (const [file, type] of uploads) {
+    if (!file || !ownerId) continue;
+    const path = `${ownerId}/${staffId}/${type}-${Date.now()}-${file.name}`;
+    const { error: upErr } = await db.storage.from('documents').upload(path, file);
+    if (upErr) {
+      alert('Form saved, but the file could not be stored: ' + upErr.message);
+      continue;
+    }
+    await db.from('documents').insert({
+      owner_id: ownerId,
+      staff_id: staffId,
+      type,
+      file_url: path,
+      file_name: file.name
+    });
+  }
   alert('Form submitted and locked. Thank you!');
   showMemberPortal({ ...updates, id: staffId, name: updates.name });
 }
@@ -1675,11 +1707,14 @@ async function openEmployeeProfile(staffId) {
       <label>Date of Birth<br><input type="date" id="edit-dob" value="${staff.dob || ''}" style="width:100%;"></label>
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
+      <label>Clock-in PIN<br><input type="text" id="edit-pin" inputmode="numeric" maxlength="4" value="${staff.pin || ''}" style="width:120px;"></label>
+      <p style="font-size:0.8rem; color:#64748b; margin:0;">This code is not encrypted. Anyone who can open this profile can see it.</p>
+      <button type="button" onclick="resetStaffPin('${staffId}')">Reset PIN</button>
       <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;" onchange="saveHourlyRate('${staffId}')"></label>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
-    <button type="button" onclick="sendPasswordInvite('${staff.email || ''}')" style="margin-top:1rem;">Send Invite / Reset Password</button>
+    <button type="button" onclick="sendPasswordInvite('${staffId}')" style="margin-top:1rem;">Send Invite / Reset Password</button>
     ${staff.starter_form_completed ? renderStarterFormMirror(staff.starter_form_data, staff.starter_form_completed_at) : ''}
     <h4 style="margin-top:2rem;">Documents</h4>
     <div id="docs-list">${docsHtml}</div>
@@ -1693,18 +1728,56 @@ async function openEmployeeProfile(staffId) {
   document.getElementById('upload-doc').onsubmit = (e) => uploadDocument(e, staffId);
 }
 
-async function sendPasswordInvite(email) {
-  if (!email) return alert('Add an email address first');
-  const { error } = await db.auth.resetPasswordForEmail(email, {
+async function sendPasswordInvite(staffId) {
+  const { data: staff } = await db.from('staff').select('email, name, pin').eq('id', staffId).single();
+  if (!staff?.email) return alert('Add an email address first');
+  const { error } = await db.auth.resetPasswordForEmail(staff.email, {
     redirectTo: window.location.origin
   });
   if (error) return alert(error.message);
-  alert('Password setup / reset email sent to ' + email);
+  const html = `
+    <div style="font-family:Inter,system-ui,sans-serif; color:#0f172a; max-width:480px;">
+      <h2 style="margin:0 0 0.5rem;">Your Time Rogue clock-in code</h2>
+      <p>Hello ${staff.name || ''},</p>
+      <p>Your clock-in code is <strong style="font-size:1.3rem; letter-spacing:0.15em;">${staff.pin || 'not set'}</strong>.</p>
+      <p style="color:#64748b; font-size:0.9rem;">This code is not encrypted. Your manager can see it. You can change it in the employee portal.</p>
+      <p>A separate email lets you set the password for your employee portal.</p>
+    </div>`;
+  try {
+    await sendEmail(staff.email, 'Your Time Rogue clock-in code', html);
+  } catch (err) {
+    return alert('The portal password email was sent, but the clock-in code email failed: ' + (err.message || err));
+  }
+  alert('Invite sent to ' + staff.email + '. It includes their clock-in code.');
 }
 window.sendPasswordInvite = sendPasswordInvite;
 
+async function resetStaffPin(staffId) {
+  if (!(await appConfirm('Set a new 4-digit clock-in code for this employee?'))) return;
+  const pin = String(Math.floor(1000 + Math.random() * 9000));
+  const { error } = await db.from('staff').update({ pin }).eq('id', staffId);
+  if (error) return alert(error.message);
+  alert('New clock-in code: ' + pin);
+  openEmployeeProfile(staffId);
+}
+window.resetStaffPin = resetStaffPin;
+
+async function updateMyPin(e, staffId) {
+  e.preventDefault();
+  const pin = document.getElementById('member-new-pin').value.trim();
+  if (!/^\d{4}$/.test(pin)) return alert('Enter a 4-digit code');
+  const { error } = await db.rpc('set_my_clock_pin', { p_staff_id: staffId, p_pin: pin });
+  if (error) return alert(error.message);
+  alert('Clock-in code updated');
+  const { data: staff } = await db.from('staff').select('*').eq('id', staffId).single();
+  if (staff) showMemberPortal(staff);
+}
+window.updateMyPin = updateMyPin;
+
 async function saveProfile(e, staffId) {
   e.preventDefault();
+  const pin = document.getElementById('edit-pin').value.trim();
+  if (!/^\d{4}$/.test(pin)) return alert('Clock-in PIN must be 4 digits');
   const first = document.getElementById('edit-first').value.trim();
   const last = document.getElementById('edit-last').value.trim();
   const updates = {
@@ -1712,6 +1785,7 @@ async function saveProfile(e, staffId) {
     dob: document.getElementById('edit-dob').value || null,
     address: document.getElementById('edit-address').value,
     email: document.getElementById('edit-email').value,
+    pin: document.getElementById('edit-pin').value.trim(),
     hourly_rate: parseFloat(document.getElementById('edit-rate').value) || 0
   };
   const photoFile = document.getElementById('photo-upload').files[0];
