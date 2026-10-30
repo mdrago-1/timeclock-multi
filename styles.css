@@ -191,7 +191,7 @@ table, th, td { font-family: Inter, system-ui, sans-serif; }
 
 /* Mobile kiosk layout */
 @media (max-width: 640px) {
-  #kiosk-screen {
+  #kiosk-screen.screen.active {
     display: flex;
     flex-direction: column;
     height: 100vh;
