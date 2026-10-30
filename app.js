@@ -646,9 +646,12 @@ function showMemberPortal(staff) {
       <form id="starter-form" style="display:flex; flex-direction:column; gap:1.25rem; max-width:560px; text-align:left;">
         <div>
           <h4 style="background:#f1f5f9; padding:0.5rem; margin:0;">Agreed details</h4>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; padding:0.75rem 0;">
-            <label>Agreed start date (DD/MM/YYYY)<br><input type="date" id="sf-start-date" value="${data.agreed_start_date || ''}" required style="width:100%;"></label>
-            <label>Agreed pay rate (£ per hour)<br><input type="number" id="sf-pay-rate" step="0.01" min="0" value="${data.agreed_pay_rate || ''}" required style="width:100%;"></label>
+          <div style="padding:0.75rem 0;">
+            <input type="hidden" id="sf-start-date" value="${data.agreed_start_date || ''}">
+            <input type="hidden" id="sf-pay-rate" value="${data.agreed_pay_rate || staff.hourly_rate || ''}">
+            <p style="margin:0 0 0.35rem;"><strong>Start date:</strong> ${data.agreed_start_date ? new Date(data.agreed_start_date + 'T00:00:00').toLocaleDateString('en-GB') : 'Not set by your manager yet'}</p>
+            <p style="margin:0;"><strong>Pay rate:</strong> ${(data.agreed_pay_rate || staff.hourly_rate) ? '£' + (data.agreed_pay_rate || staff.hourly_rate) + ' per hour' : 'Not set by your manager yet'}</p>
+            <p style="margin:0.5rem 0 0; font-size:0.85rem; color:#64748b;">Set by your manager. You cannot change these.</p>
           </div>
         </div>
         <div>
@@ -872,9 +875,14 @@ async function loadMemberHours(staffId) {
 async function submitStarterForm(e, staffId) {
   e.preventDefault();
   if (!(await appConfirm('Confirm all info is correct as this can\'t be undone. Submit now?'))) return;
+  const agreedStart = document.getElementById('sf-start-date').value;
+  const agreedRate = document.getElementById('sf-pay-rate').value;
+  if (!agreedStart || !(parseFloat(agreedRate) > 0)) {
+    return alert('Your manager needs to set your start date and pay rate before you can submit this form.');
+  }
   const formData = {
-    agreed_start_date: document.getElementById('sf-start-date').value,
-    agreed_pay_rate: document.getElementById('sf-pay-rate').value,
+    agreed_start_date: agreedStart,
+    agreed_pay_rate: agreedRate,
     first_name: document.getElementById('sf-first').value.trim(),
     last_name: document.getElementById('sf-last').value.trim(),
     preferred_name: document.getElementById('sf-preferred').value.trim(),
@@ -1706,10 +1714,17 @@ async function saveWorkerType(staffId) {
   await db.from('staff').update({ worker_type: type }).eq('id', staffId);
 }
 async function saveHourlyRate(staffId) {
+  await saveAgreedTerms(staffId);
+}
+async function saveAgreedTerms(staffId) {
   const rate = parseFloat(document.getElementById('edit-rate').value) || 0;
-  await db.from('staff').update({ hourly_rate: rate }).eq('id', staffId);
+  const start = document.getElementById('edit-start')?.value || '';
+  const { data: existing } = await db.from('staff').select('starter_form_data').eq('id', staffId).single();
+  const starter = { ...(existing?.starter_form_data || {}), agreed_start_date: start, agreed_pay_rate: rate ? String(rate) : '' };
+  await db.from('staff').update({ hourly_rate: rate, starter_form_data: starter }).eq('id', staffId);
 }
 window.saveHourlyRate = saveHourlyRate;
+window.saveAgreedTerms = saveAgreedTerms;
 
 async function resetStarterForm(staffId) {
   if (!(await appConfirm('Allow this employee to fill out the starter form again? Previous answers will be kept in the record.'))) return;
@@ -1810,7 +1825,9 @@ async function openEmployeeProfile(staffId) {
       <label>Clock-in PIN<br><input type="text" id="edit-pin" inputmode="numeric" maxlength="4" value="${staff.pin || ''}" style="width:120px;"></label>
       <p style="font-size:0.8rem; color:#64748b; margin:0;">This code is not encrypted. Anyone who can open this profile can see it.</p>
       <button type="button" onclick="resetStaffPin('${staffId}')">Reset PIN</button>
-      <label>Hourly Rate (£)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.hourly_rate || 0}" style="width:100%;" onchange="saveHourlyRate('${staffId}')"></label>
+      <label>Agreed start date<br><input type="date" id="edit-start" value="${staff.starter_form_data?.agreed_start_date || ''}" style="width:100%;" onchange="saveAgreedTerms('${staffId}')"></label>
+      <label>Agreed pay rate (£ per hour)<br><input type="number" id="edit-rate" step="0.01" min="0" value="${staff.starter_form_data?.agreed_pay_rate || staff.hourly_rate || ''}" style="width:100%;" onchange="saveAgreedTerms('${staffId}')"></label>
+      <p style="font-size:0.8rem; color:#64748b; margin:0;">Shown to the employee on their invite and starter form. They cannot change these.</p>
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
@@ -1829,18 +1846,24 @@ async function openEmployeeProfile(staffId) {
 }
 
 async function sendPasswordInvite(staffId) {
-  const { data: staff } = await db.from('staff').select('email, name, pin').eq('id', staffId).single();
+  const { data: staff } = await db.from('staff').select('email, name, pin, hourly_rate, starter_form_data').eq('id', staffId).single();
   if (!staff?.email) return alert('Add an email address first');
+  const start = staff.starter_form_data?.agreed_start_date || '';
+  const rate = staff.starter_form_data?.agreed_pay_rate || staff.hourly_rate || '';
+  if (!start || !(parseFloat(rate) > 0)) return alert('Set the agreed start date and pay rate before sending the invite.');
+  const startLabel = new Date(start + 'T00:00:00').toLocaleDateString('en-GB');
   try {
     await sendEmail(staff.email, 'Your Time Rogue employee portal', '', {
       action: 'portal-invite',
       name: staff.name || '',
-      pin: staff.pin || ''
+      pin: staff.pin || '',
+      startDate: startLabel,
+      payRate: String(rate)
     });
   } catch (err) {
     return alert('Invite failed: ' + (err.message || err));
   }
-  alert('Invite sent to ' + staff.email + '. It includes their clock-in code and a link to set their portal password.');
+  alert('Invite sent to ' + staff.email + '. It includes their start date, pay rate, clock-in code and portal setup code.');
 }
 window.sendPasswordInvite = sendPasswordInvite;
 
@@ -1879,6 +1902,12 @@ async function saveProfile(e, staffId) {
     email: document.getElementById('edit-email').value,
     pin: document.getElementById('edit-pin').value.trim(),
     hourly_rate: parseFloat(document.getElementById('edit-rate').value) || 0
+  };
+  const { data: existing } = await db.from('staff').select('starter_form_data').eq('id', staffId).single();
+  updates.starter_form_data = {
+    ...(existing?.starter_form_data || {}),
+    agreed_start_date: document.getElementById('edit-start')?.value || '',
+    agreed_pay_rate: updates.hourly_rate ? String(updates.hourly_rate) : ''
   };
   const photoFile = document.getElementById('photo-upload').files[0];
   if (photoFile) {
