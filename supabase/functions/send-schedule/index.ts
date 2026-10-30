@@ -32,6 +32,9 @@ async function portalLink(email) {
     options: { redirectTo },
   });
   if (!invite.error && invite.data?.properties?.email_otp) {
+    if (invite.data.user?.id) {
+      await admin.auth.admin.updateUserById(invite.data.user.id, { email_confirm: true });
+    }
     return { otp: invite.data.properties.email_otp, kind: "invite" };
   }
   const recovery = await admin.auth.admin.generateLink({
@@ -41,6 +44,9 @@ async function portalLink(email) {
   });
   if (recovery.error || !recovery.data?.properties?.email_otp) {
     throw new Error(recovery.error?.message || invite.error?.message || "Could not create a login code");
+  }
+  if (recovery.data.user?.id) {
+    await admin.auth.admin.updateUserById(recovery.data.user.id, { email_confirm: true });
   }
   return { otp: recovery.data.properties.email_otp, kind: "recovery" };
 }
