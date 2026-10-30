@@ -45,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const setupParams = new URLSearchParams(window.location.search);
     if (setupParams.get('portal-setup') === '1') {
       showPortalSetup(setupParams.get('email') || '', setupParams.get('kind') || 'invite');
-      return;
     }
 
     // Check for recovery in the URL first (before anything else)
@@ -132,6 +131,12 @@ function setupEventListeners() {
     if (m) m.style.display = 'flex';
   });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
+  document.getElementById('portal-setup-open')?.addEventListener('click', () => showPortalSetup('', 'invite'));
+  document.getElementById('member-setup-btn')?.addEventListener('click', () => showPortalSetup(document.getElementById('member-email')?.value || '', 'invite'));
+  document.getElementById('portal-setup-cancel')?.addEventListener('click', () => {
+    const overlay = document.getElementById('portal-setup-overlay');
+    if (overlay) overlay.style.display = 'none';
+  });
   document.getElementById('login-cancel')?.addEventListener('click', () => {
     const m = document.getElementById('login-modal');
     if (m) m.style.display = 'none';
@@ -558,31 +563,18 @@ function showMemberLogin() {
 }
 
 function showPortalSetup(email, kind) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  let screen = document.getElementById('portal-setup-screen');
-  if (!screen) {
-    screen = document.createElement('div');
-    screen.id = 'portal-setup-screen';
-    screen.className = 'screen';
-    screen.innerHTML = `
-      <div style="max-width:380px; margin:3rem auto; padding:1.5rem; background:#fff; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.08); font-family:Inter,system-ui,sans-serif;">
-        <h2 style="margin:0 0 0.5rem; color:#0f172a; text-align:center;">Set your portal password</h2>
-        <p style="color:#64748b; font-size:0.9rem; text-align:center; margin:0 0 1rem;">Enter the code from your Time Rogue email, then choose a password. You will then log in to the member portal.</p>
-        <form id="portal-setup-form" style="display:flex; flex-direction:column; gap:0.75rem;">
-          <input type="hidden" id="portal-setup-kind">
-          <input type="email" id="portal-setup-email" placeholder="Email" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
-          <input type="text" id="portal-setup-code" placeholder="Code from the email" required autocomplete="one-time-code" style="width:100%; padding:0.7rem; box-sizing:border-box;">
-          <input type="password" id="portal-setup-password" placeholder="New password (min 8 characters)" minlength="8" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
-          <input type="password" id="portal-setup-confirm" placeholder="Confirm password" minlength="8" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
-          <button type="submit" style="background:#0f172a; color:#fff; border:none; border-radius:8px; padding:0.75rem;">Save password</button>
-        </form>
-      </div>`;
-    document.getElementById('app').appendChild(screen);
-    document.getElementById('portal-setup-form').onsubmit = submitPortalSetup;
+  const overlay = document.getElementById('portal-setup-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  const emailInput = document.getElementById('portal-setup-email');
+  const kindInput = document.getElementById('portal-setup-kind');
+  if (emailInput && email) emailInput.value = email;
+  if (kindInput) kindInput.value = kind === 'recovery' ? 'recovery' : 'invite';
+  const form = document.getElementById('portal-setup-form');
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = '1';
+    form.onsubmit = submitPortalSetup;
   }
-  document.getElementById('portal-setup-email').value = email;
-  document.getElementById('portal-setup-kind').value = kind === 'recovery' ? 'recovery' : 'invite';
-  screen.classList.add('active');
 }
 
 async function submitPortalSetup(e) {
@@ -604,6 +596,8 @@ async function submitPortalSetup(e) {
   const { error: upErr } = await db.auth.updateUser({ password });
   if (upErr) return alert(upErr.message);
   await db.auth.signOut();
+  const overlay = document.getElementById('portal-setup-overlay');
+  if (overlay) overlay.style.display = 'none';
   history.replaceState(null, '', window.location.pathname);
   showMemberLogin();
   const emailInput = document.getElementById('member-email');
