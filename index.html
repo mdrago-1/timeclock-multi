@@ -42,10 +42,9 @@
       <header style="display:flex; justify-content:space-between; align-items:center; padding:1rem 1.5rem; background:#0f172a;">
         <img src="time-rogue-logo-white.png" alt="Time Rogue" style="height:48px; width:auto;">
         <div style="display:flex; gap:0.5rem;">
-          <button type="button" id="login-btn" style="background:white; color:#0f172a;">Log In</button>
-          <button type="button" id="signup-btn" style="background:white; color:#0f172a;">Create Account</button>
-          <button type="button" id="forgot-btn" style="background:transparent; color:white; border:1px solid #334155;">Forgot Password?</button>
-          <button type="button" id="home-member-btn" style="background:white; color:#0f172a;">Member Portal</button>
+          <button type="button" id="login-btn" style="background:white; color:#0f172a;">Business login</button>
+          <button type="button" id="signup-btn" style="background:white; color:#0f172a;">Set up your business</button>
+          <button type="button" id="home-member-btn" style="background:white; color:#0f172a;">Employee login</button>
           <button type="button" id="kiosk-login-btn" style="background:transparent; color:white; border:1px solid #334155;">Keypad Clock-In</button>
         </div>
       </header>
@@ -58,7 +57,7 @@
           <p style="color:#475569; font-size:1.05rem; margin:0 0 1.5rem;">Made for small business operators, by a small business operator.</p>
           <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
             <button type="button" id="hero-signup" style="background:#0f172a; color:white; padding:0.8rem 1.4rem;">Start free</button>
-            <button type="button" id="hero-login" style="background:white; color:#0f172a; border:1px solid #cbd5e1; padding:0.8rem 1.4rem;">Log in</button>
+            <button type="button" id="hero-login" style="background:white; color:#0f172a; border:1px solid #cbd5e1; padding:0.8rem 1.4rem;">Business login</button>
           </div>
         </div>
         <div style="flex:1; min-width:280px; text-align:center;">
@@ -126,11 +125,12 @@
       <!-- Login modal -->
       <div id="login-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
         <div style="background:white; border-radius:12px; padding:1.5rem; max-width:340px; width:100%;">
-          <h3 style="margin:0 0 1rem; text-align:center;">Log In</h3>
+          <h3 style="margin:0 0 1rem; text-align:center;">Business login</h3>
           <form id="auth-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:0.75rem;">
             <input type="email" id="email" placeholder="Email" required>
             <input type="password" id="password" placeholder="Password" required>
             <button type="submit">Log In</button>
+            <button type="button" id="login-forgot" style="background:transparent; color:#0f172a; border:none;">Forgot password?</button>
             <button type="button" id="passkey-login-btn" style="background:transparent; color:#0f172a; border:1px solid #cbd5e1;">Sign in with passkey</button>
             <button type="button" id="login-cancel" style="background:transparent; color:#64748b;">Cancel</button>
           </form>
@@ -179,7 +179,7 @@
         </div>
         <div id="current-time" class="retro-time"></div>
         <div class="kiosk-right">
-          <button id="member-btn">Member Portal</button>
+          <button id="member-btn">Employee login</button>
           <div class="kiosk-right">
           <button id="keypad-admin-btn" style="background:transparent; color:white; border:1px solid rgba(255,255,255,0.4); padding:0.4rem 0.8rem;">Admin</button>
         </div>
@@ -217,11 +217,12 @@
     </div>
 
     <div id="member-login-screen" class="screen">
-      <div class="logo"><div class="clock-icon"></div><h1>Member Portal</h1></div>
+      <div class="logo"><div class="clock-icon"></div><h1>Employee login</h1></div>
       <form id="member-login-form" style="max-width:320px; margin:0 auto; display:flex; flex-direction:column; gap:1rem;">
         <input type="email" id="member-email" placeholder="Email" required>
         <input type="password" id="member-password" placeholder="Password" required>
         <button type="submit">Log In</button>
+        <button type="button" id="member-forgot" style="background:transparent; color:#0f172a; border:none;">Forgot password?</button>
         <button type="button" id="member-setup-btn">I have a setup code</button>
         <button type="button" id="cancel-member">Cancel</button>
       </form>
@@ -294,7 +295,7 @@
     })();
   </script>
   <script src="config.js"></script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 
 <script>
 (function(){
