@@ -140,9 +140,20 @@ function setupEventListeners() {
     const m = document.getElementById('login-modal');
     if (m) m.style.display = 'none';
   });
-  document.getElementById('forgot-btn')?.addEventListener('click', () => {
+  document.getElementById('login-forgot')?.addEventListener('click', () => {
+    const typed = document.getElementById('email')?.value || '';
+    const forgot = document.getElementById('forgot-email');
+    if (forgot) forgot.value = typed;
     const m = document.getElementById('forgot-modal');
     if (m) m.style.display = 'flex';
+  });
+  document.getElementById('member-forgot')?.addEventListener('click', () => {
+    const email = document.getElementById('member-email')?.value?.trim();
+    if (!email) return alert('Enter your email first');
+    db.auth.resetPasswordForEmail(email, { redirectTo: 'https://timerogue.app' }).then(({ error }) => {
+      if (error) return alert(error.message);
+      alert('Password reset email sent. Check your inbox, then log in here.');
+    });
   });
   document.getElementById('forgot-cancel')?.addEventListener('click', () => {
     const m = document.getElementById('forgot-modal');
@@ -151,7 +162,7 @@ function setupEventListeners() {
   document.getElementById('forgot-submit')?.addEventListener('click', () => {
     const email = document.getElementById('forgot-email')?.value;
     if (!email) return alert('Enter your email');
-    db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }).then(({ error }) => {
+    db.auth.resetPasswordForEmail(email, { redirectTo: 'https://timerogue.app' }).then(({ error }) => {
       if (error) return alert(error.message);
       alert('Password reset email sent. Check your inbox.');
       document.getElementById('forgot-modal').style.display = 'none';
@@ -476,10 +487,10 @@ async function updatePasswordFromReset(e) {
     status.style.color = '#dc2626';
     return;
   }
-  status.textContent = 'Password updated! Redirecting…';
+  status.textContent = 'Password updated. Log in with Business login or Employee login.';
   status.style.color = '#16a34a';
   setTimeout(() => {
-    showKiosk();
+    showAuth();
   }, 1200);
 }
 
