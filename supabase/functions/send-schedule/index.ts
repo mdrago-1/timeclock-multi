@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { to, subject, html, action, name, pin } = body;
+    const { to, subject, html, action, name, pin, startDate, payRate } = body;
 
     if (!RESEND_API_KEY) return json({ error: "RESEND_API_KEY not set" }, 500);
     if (!to) return json({ error: "Missing recipient" }, 400);
@@ -89,11 +89,15 @@ Deno.serve(async (req) => {
       const safeName = String(name || "").replace(/[<>]/g, "");
       const safePin = String(pin || "not set").replace(/[<>]/g, "");
       const safeOtp = String(setup.otp || "").replace(/[<>]/g, "");
+      const safeStart = String(startDate || "").replace(/[<>]/g, "");
+      const safeRate = String(payRate || "").replace(/[<>]/g, "");
       const setupUrl = "https://timerogue.app/?portal-setup=1&email=" + encodeURIComponent(String(to).trim()) + "&kind=" + setup.kind;
       const inviteHtml = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#0f172a;max-width:480px;">
           <h2 style="margin:0 0 0.5rem;">Your Time Rogue employee portal</h2>
           <p>Hello ${safeName},</p>
+          <p>Your agreed start date is <strong>${safeStart}</strong>.</p>
+          <p>Your agreed pay rate is <strong>£${safeRate} per hour</strong>.</p>
           <p>Your clock-in code is <strong style="font-size:1.3rem;letter-spacing:0.15em;">${safePin}</strong>.</p>
           <p style="color:#64748b;font-size:0.9rem;">This code is not encrypted. Your manager can see it. You can change it in the employee portal.</p>
           <p>Your portal setup code is <strong style="font-size:1.3rem;letter-spacing:0.12em;">${safeOtp}</strong>.</p>
