@@ -7,6 +7,37 @@ let currentWeekOffset = 0;
 let ADMIN_PASSWORD = localStorage.getItem('admin_password') || 'Admin0506';
 const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
 
+const _noticeQueue = [];
+let _noticeOpen = false;
+function appNotice(message) {
+  _noticeQueue.push(String(message ?? ''));
+  if (!_noticeOpen) showNextNotice();
+}
+function showNextNotice() {
+  const message = _noticeQueue.shift();
+  if (message == null) { _noticeOpen = false; return; }
+  _noticeOpen = true;
+  let modal = document.getElementById('app-notice-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'app-notice-modal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:400; display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;';
+    modal.innerHTML = `
+      <div style="background:#fff; color:#0f172a; border-radius:12px; padding:1.5rem; max-width:380px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+        <p id="app-notice-msg" style="margin:0 0 1.25rem; line-height:1.45; white-space:pre-wrap;"></p>
+        <button type="button" id="app-notice-ok" style="background:#0f172a; color:#fff; border:none; border-radius:8px; padding:0.7rem 1.4rem; min-width:120px;">OK</button>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('app-notice-ok').onclick = () => {
+      modal.style.display = 'none';
+      showNextNotice();
+    };
+  }
+  document.getElementById('app-notice-msg').textContent = message;
+  modal.style.display = 'flex';
+}
+window.alert = appNotice;
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     applyClockStyle();
@@ -275,13 +306,13 @@ function appConfirm(message) {
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'app-confirm-modal';
-      modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:300; display:flex; align-items:center; justify-content:center; padding:1rem;';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:300; display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;';
       modal.innerHTML = `
-        <div style="background:white; border-radius:12px; padding:1.5rem; max-width:340px; width:100%; text-align:center;">
-          <p id="app-confirm-msg" style="margin:0 0 1.25rem; color:#0f172a;"></p>
+        <div style="background:#fff; color:#0f172a; border-radius:12px; padding:1.5rem; max-width:380px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+          <p id="app-confirm-msg" style="margin:0 0 1.25rem; line-height:1.45;"></p>
           <div style="display:flex; gap:0.5rem; justify-content:center;">
-            <button type="button" id="app-confirm-cancel" style="background:transparent; color:#64748b; border:1px solid #e2e8f0;">Cancel</button>
-            <button type="button" id="app-confirm-ok" style="background:#0f172a; color:white;">OK</button>
+            <button type="button" id="app-confirm-cancel" style="background:#fff; color:#0f172a; border:1px solid #e2e8f0; border-radius:8px; padding:0.7rem 1.2rem;">Cancel</button>
+            <button type="button" id="app-confirm-ok" style="background:#0f172a; color:#fff; border:none; border-radius:8px; padding:0.7rem 1.2rem;">OK</button>
           </div>
         </div>
       `;
