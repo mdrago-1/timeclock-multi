@@ -31,18 +31,18 @@ async function portalLink(email) {
     email,
     options: { redirectTo },
   });
-  if (!invite.error && invite.data?.properties?.action_link) {
-    return invite.data.properties.action_link;
+  if (!invite.error && invite.data?.properties?.email_otp) {
+    return { otp: invite.data.properties.email_otp, kind: "invite" };
   }
   const recovery = await admin.auth.admin.generateLink({
     type: "recovery",
     email,
     options: { redirectTo },
   });
-  if (recovery.error || !recovery.data?.properties?.action_link) {
-    throw new Error(recovery.error?.message || invite.error?.message || "Could not create a login link");
+  if (recovery.error || !recovery.data?.properties?.email_otp) {
+    throw new Error(recovery.error?.message || invite.error?.message || "Could not create a login code");
   }
-  return recovery.data.properties.action_link;
+  return { otp: recovery.data.properties.email_otp, kind: "recovery" };
 }
 
 async function sendResend(to, subject, html) {
@@ -79,18 +79,20 @@ Deno.serve(async (req) => {
     if (!to) return json({ error: "Missing recipient" }, 400);
 
     if (action === "portal-invite") {
-      const link = await portalLink(String(to).trim());
+      const setup = await portalLink(String(to).trim());
       const safeName = String(name || "").replace(/[<>]/g, "");
       const safePin = String(pin || "not set").replace(/[<>]/g, "");
+      const safeOtp = String(setup.otp || "").replace(/[<>]/g, "");
+      const setupUrl = "https://timerogue.app/?portal-setup=1&email=" + encodeURIComponent(String(to).trim()) + "&kind=" + setup.kind;
       const inviteHtml = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#0f172a;max-width:480px;">
           <h2 style="margin:0 0 0.5rem;">Your Time Rogue employee portal</h2>
           <p>Hello ${safeName},</p>
           <p>Your clock-in code is <strong style="font-size:1.3rem;letter-spacing:0.15em;">${safePin}</strong>.</p>
           <p style="color:#64748b;font-size:0.9rem;">This code is not encrypted. Your manager can see it. You can change it in the employee portal.</p>
-          <p>Set your portal password here:</p>
-          <p><a href="${link}" style="display:inline-block;background:#0f172a;color:white;text-decoration:none;padding:0.7rem 1rem;border-radius:8px;">Set portal password</a></p>
-          <p style="color:#64748b;font-size:0.85rem;">After that, log in at https://timerogue.app and open the member portal.</p>
+          <p>Your portal setup code is <strong style="font-size:1.3rem;letter-spacing:0.12em;">${safeOtp}</strong>.</p>
+          <p><a href="${setupUrl}" style="display:inline-block;background:#0f172a;color:white;text-decoration:none;padding:0.7rem 1rem;border-radius:8px;">Set portal password</a></p>
+          <p style="color:#64748b;font-size:0.85rem;">Enter that code, choose a password, then log in to the member portal.</p>
         </div>`;
       const data = await sendResend(to, subject || "Your Time Rogue employee portal", inviteHtml);
       return json(data);
