@@ -176,6 +176,7 @@ function setupEventListeners() {
   document.getElementById('exit-admin')?.addEventListener('click', showChooser);
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
   document.getElementById('member-btn')?.addEventListener('click', showMemberLogin);
+  document.getElementById('home-member-btn')?.addEventListener('click', showMemberLogin);
   document.getElementById('cancel-admin')?.addEventListener('click', showChooser);
   document.getElementById('cancel-member')?.addEventListener('click', showKiosk);
   document.getElementById('exit-member')?.addEventListener('click', showKiosk);
