@@ -46,6 +46,7 @@
           <button type="button" id="signup-btn" style="background:white; color:#0f172a;">Create Account</button>
           <button type="button" id="forgot-btn" style="background:transparent; color:white; border:1px solid #334155;">Forgot Password?</button>
           <button type="button" id="kiosk-login-btn" style="background:transparent; color:white; border:1px solid #334155;">Keypad Clock-In</button>
+          <button type="button" id="portal-setup-open" style="background:transparent; color:white; border:1px solid #334155;">Set portal password</button>
         </div>
       </header>
 
@@ -221,6 +222,7 @@
         <input type="email" id="member-email" placeholder="Email" required>
         <input type="password" id="member-password" placeholder="Password" required>
         <button type="submit">Log In</button>
+        <button type="button" id="member-setup-btn">I have a setup code</button>
         <button type="button" id="cancel-member">Cancel</button>
       </form>
     </div>
@@ -264,8 +266,35 @@
       </div>
 </div>
   </div>
+  <div id="portal-setup-overlay" style="display:none; position:fixed; inset:0; z-index:5000; background:rgba(15,23,42,0.55); align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;">
+    <div style="background:#fff; color:#0f172a; border-radius:12px; padding:1.5rem; max-width:380px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+      <h2 style="margin:0 0 0.5rem; text-align:center;">Set your portal password</h2>
+      <p style="color:#64748b; font-size:0.9rem; text-align:center; margin:0 0 1rem;">Enter the code from your Time Rogue email, then choose a password. You will then log in to the member portal.</p>
+      <form id="portal-setup-form" style="display:flex; flex-direction:column; gap:0.75rem;">
+        <input type="hidden" id="portal-setup-kind" value="invite">
+        <input type="email" id="portal-setup-email" placeholder="Email" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
+        <input type="text" id="portal-setup-code" placeholder="Code from the email" required autocomplete="one-time-code" style="width:100%; padding:0.7rem; box-sizing:border-box;">
+        <input type="password" id="portal-setup-password" placeholder="New password (min 8 characters)" minlength="8" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
+        <input type="password" id="portal-setup-confirm" placeholder="Confirm password" minlength="8" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
+        <button type="submit" style="background:#0f172a; color:#fff; border:none; border-radius:8px; padding:0.75rem;">Save password</button>
+        <button type="button" id="portal-setup-cancel" style="background:#fff; color:#0f172a; border:1px solid #e2e8f0; border-radius:8px; padding:0.7rem;">Cancel</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      if (q.get('portal-setup') !== '1') return;
+      var overlay = document.getElementById('portal-setup-overlay');
+      if (overlay) overlay.style.display = 'flex';
+      var email = document.getElementById('portal-setup-email');
+      if (email && q.get('email')) email.value = q.get('email');
+      var kind = document.getElementById('portal-setup-kind');
+      if (kind && q.get('kind')) kind.value = q.get('kind');
+    })();
+  </script>
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=5"></script>
 
 <script>
 (function(){
