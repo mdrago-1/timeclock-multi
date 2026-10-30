@@ -602,17 +602,32 @@ async function submitPortalSetup(e) {
   showMemberLogin();
   const emailInput = document.getElementById('member-email');
   if (emailInput) emailInput.value = email;
-  alert('Password saved. Log in here with your email and the password you just set.');
+  alert('Password saved. On the member portal, log in with this email and the password you just typed. Your clock-in code is the 4-digit number in the email, not this password and not the setup code.');
 }
 
 async function memberLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('member-email').value;
+  const email = document.getElementById('member-email').value.trim();
   const password = document.getElementById('member-password').value;
   const { data, error } = await db.auth.signInWithPassword({ email, password });
-  if (error) return alert(error.message);
-  const { data: staff } = await db.from('staff').select('*').eq('email', email).eq('owner_id', currentUser.id).maybeSingle();
-  if (!staff) return alert('No staff profile found for this email');
+  if (error) {
+    if (/confirm/i.test(error.message)) {
+      return alert('This email is not confirmed yet. Ask your manager to press Send Invite once more, then log in with the password you already chose.');
+    }
+    return alert(error.message);
+  }
+  currentUser = data.user;
+  let staff = null;
+  const rpc = await db.rpc('my_staff_profile');
+  if (!rpc.error) {
+    staff = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+  }
+  if (!staff) {
+    const fallback = await db.from('staff').select('*').ilike('email', email).limit(1);
+    staff = fallback.data?.[0] || null;
+  }
+  if (!staff) return alert('No employee profile found for this email. Ask your manager to check the email on your employee profile matches this one.');
+  currentUser = { id: staff.owner_id, email: data.user.email };
   showMemberPortal(staff);
 }
 
@@ -1114,7 +1129,7 @@ async function validatePin() {
   let staff = null;
   if (window._keypadOwnerId) {
     const { data } = await db.rpc('keypad_staff', { p_owner_id: window._keypadOwnerId });
-    staff = (data || []).find(s => s.pin === currentPin);
+    staff = (data || []).find(s => String(s.pin || '').trim() === currentPin);
   } else {
     const { data, error } = await db.from('staff')
       .select('*')
