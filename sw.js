@@ -1,14 +1,18 @@
-const CACHE = 'time-rogue-v2';
-const ASSETS = ['/', '/index.html', '/app.js', '/styles.css', '/manifest.json'];
+const CACHE = 'time-rogue-v3';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(self.skipWaiting());
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(self.clients.claim());
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  if (e.request.method !== 'GET') return;
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });
 self.addEventListener('push', e => {
   const data = e.data ? e.data.json() : { title: 'Time Rogue', body: 'You have a notification' };
