@@ -131,7 +131,6 @@ function setupEventListeners() {
     if (m) m.style.display = 'flex';
   });
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
-  document.getElementById('portal-setup-open')?.addEventListener('click', () => showPortalSetup('', 'invite'));
   document.getElementById('member-setup-btn')?.addEventListener('click', () => showPortalSetup(document.getElementById('member-email')?.value || '', 'invite'));
   document.getElementById('portal-setup-cancel')?.addEventListener('click', () => {
     const overlay = document.getElementById('portal-setup-overlay');
