@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for recovery in the URL first (before anything else)
     const hash = window.location.hash || '';
     const search = window.location.search || '';
-    const isRecovery = hash.includes('type=recovery') || hash.includes('access_token') || search.includes('type=recovery');
+    const isRecovery = hash.includes('type=recovery') || hash.includes('type=invite') || hash.includes('access_token') || search.includes('type=recovery') || search.includes('type=invite');
 
     // Listen for the recovery event
     let recoveryHandled = false;
@@ -1731,24 +1731,16 @@ async function openEmployeeProfile(staffId) {
 async function sendPasswordInvite(staffId) {
   const { data: staff } = await db.from('staff').select('email, name, pin').eq('id', staffId).single();
   if (!staff?.email) return alert('Add an email address first');
-  const { error } = await db.auth.resetPasswordForEmail(staff.email, {
-    redirectTo: window.location.origin
-  });
-  if (error) return alert(error.message);
-  const html = `
-    <div style="font-family:Inter,system-ui,sans-serif; color:#0f172a; max-width:480px;">
-      <h2 style="margin:0 0 0.5rem;">Your Time Rogue clock-in code</h2>
-      <p>Hello ${staff.name || ''},</p>
-      <p>Your clock-in code is <strong style="font-size:1.3rem; letter-spacing:0.15em;">${staff.pin || 'not set'}</strong>.</p>
-      <p style="color:#64748b; font-size:0.9rem;">This code is not encrypted. Your manager can see it. You can change it in the employee portal.</p>
-      <p>A separate email lets you set the password for your employee portal.</p>
-    </div>`;
   try {
-    await sendEmail(staff.email, 'Your Time Rogue clock-in code', html);
+    await sendEmail(staff.email, 'Your Time Rogue employee portal', '', {
+      action: 'portal-invite',
+      name: staff.name || '',
+      pin: staff.pin || ''
+    });
   } catch (err) {
-    return alert('The portal password email was sent, but the clock-in code email failed: ' + (err.message || err));
+    return alert('Invite failed: ' + (err.message || err));
   }
-  alert('Invite sent to ' + staff.email + '. It includes their clock-in code.');
+  alert('Invite sent to ' + staff.email + '. It includes their clock-in code and a link to set their portal password.');
 }
 window.sendPasswordInvite = sendPasswordInvite;
 
@@ -2281,7 +2273,7 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
   return html;
 }
 
-async function sendEmail(to, subject, html) {
+async function sendEmail(to, subject, html, extra) {
   const url = 'https://bpljlflxkntyhyoekpkd.supabase.co/functions/v1/Send-Schedule';
   const res = await fetch(url, {
     method: 'POST',
@@ -2289,7 +2281,7 @@ async function sendEmail(to, subject, html) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
-    body: JSON.stringify({ to, subject, html }),
+    body: JSON.stringify({ to, subject, html, ...(extra || {}) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
