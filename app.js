@@ -42,6 +42,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     applyClockStyle();
 
+    const setupParams = new URLSearchParams(window.location.search);
+    if (setupParams.get('portal-setup') === '1') {
+      showPortalSetup(setupParams.get('email') || '', setupParams.get('kind') || 'invite');
+      return;
+    }
+
     // Check for recovery in the URL first (before anything else)
     const hash = window.location.hash || '';
     const search = window.location.search || '';
@@ -549,6 +555,60 @@ function showMemberLogin() {
   document.getElementById('member-login-screen').classList.add('active');
   document.getElementById('member-email').value = '';
   document.getElementById('member-password').value = '';
+}
+
+function showPortalSetup(email, kind) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  let screen = document.getElementById('portal-setup-screen');
+  if (!screen) {
+    screen = document.createElement('div');
+    screen.id = 'portal-setup-screen';
+    screen.className = 'screen';
+    screen.innerHTML = `
+      <div style="max-width:380px; margin:3rem auto; padding:1.5rem; background:#fff; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.08); font-family:Inter,system-ui,sans-serif;">
+        <h2 style="margin:0 0 0.5rem; color:#0f172a; text-align:center;">Set your portal password</h2>
+        <p style="color:#64748b; font-size:0.9rem; text-align:center; margin:0 0 1rem;">Enter the code from your Time Rogue email, then choose a password. You will then log in to the member portal.</p>
+        <form id="portal-setup-form" style="display:flex; flex-direction:column; gap:0.75rem;">
+          <input type="hidden" id="portal-setup-kind">
+          <input type="email" id="portal-setup-email" placeholder="Email" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
+          <input type="text" id="portal-setup-code" placeholder="Code from the email" required autocomplete="one-time-code" style="width:100%; padding:0.7rem; box-sizing:border-box;">
+          <input type="password" id="portal-setup-password" placeholder="New password (min 8 characters)" minlength="8" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
+          <input type="password" id="portal-setup-confirm" placeholder="Confirm password" minlength="8" required style="width:100%; padding:0.7rem; box-sizing:border-box;">
+          <button type="submit" style="background:#0f172a; color:#fff; border:none; border-radius:8px; padding:0.75rem;">Save password</button>
+        </form>
+      </div>`;
+    document.getElementById('app').appendChild(screen);
+    document.getElementById('portal-setup-form').onsubmit = submitPortalSetup;
+  }
+  document.getElementById('portal-setup-email').value = email;
+  document.getElementById('portal-setup-kind').value = kind === 'recovery' ? 'recovery' : 'invite';
+  screen.classList.add('active');
+}
+
+async function submitPortalSetup(e) {
+  e.preventDefault();
+  const email = document.getElementById('portal-setup-email').value.trim();
+  const token = document.getElementById('portal-setup-code').value.trim();
+  const password = document.getElementById('portal-setup-password').value;
+  const confirm = document.getElementById('portal-setup-confirm').value;
+  const kind = document.getElementById('portal-setup-kind').value || 'invite';
+  if (password.length < 8) return alert('Password must be at least 8 characters');
+  if (password !== confirm) return alert('Passwords do not match');
+  let { error } = await db.auth.verifyOtp({ email, token, type: kind });
+  if (error) {
+    const other = kind === 'invite' ? 'recovery' : 'invite';
+    const retry = await db.auth.verifyOtp({ email, token, type: other });
+    error = retry.error;
+  }
+  if (error) return alert(error.message || 'That code was not accepted. Ask your manager to send the invite again.');
+  const { error: upErr } = await db.auth.updateUser({ password });
+  if (upErr) return alert(upErr.message);
+  await db.auth.signOut();
+  history.replaceState(null, '', window.location.pathname);
+  showMemberLogin();
+  const emailInput = document.getElementById('member-email');
+  if (emailInput) emailInput.value = email;
+  alert('Password saved. Log in here with your email and the password you just set.');
 }
 
 async function memberLogin(e) {
