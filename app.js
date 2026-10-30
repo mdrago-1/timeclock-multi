@@ -1160,12 +1160,22 @@ async function validatePin() {
 }
 
 async function showActions() {
-  const { data: last } = await db.from('clocks')
-    .select('type')
-    .eq('staff_id', currentStaff.id)
-    .order('timestamp', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let last = null;
+  if (window._keypadOwnerId) {
+    const { data } = await db.rpc('keypad_last_clock', {
+      p_owner_id: window._keypadOwnerId,
+      p_staff_id: currentStaff.id
+    });
+    if (data) last = { type: data };
+  } else {
+    const { data } = await db.from('clocks')
+      .select('type')
+      .eq('staff_id', currentStaff.id)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    last = data;
+  }
   const buttons = document.getElementById('action-buttons');
   buttons.innerHTML = '';
   const actions = [
