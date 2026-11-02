@@ -612,6 +612,14 @@ function withTimeout(promise, ms, message) {
   ]);
 }
 
+function portalCodeError(message) {
+  const text = String(message || '');
+  if (/expired|invalid|otp/i.test(text)) {
+    return 'That code has expired or was already used. Ask your manager to press Send invite again, then use the new email.';
+  }
+  return text || 'That code was not accepted. Ask your manager to send the invite again.';
+}
+
 async function submitPortalSetup(e) {
   e.preventDefault();
   const form = e.target;
@@ -638,7 +646,7 @@ async function submitPortalSetup(e) {
         'Checking the code took too long. Try again.'
       );
     }
-    if (result.error) return alert(result.error.message || 'That code was not accepted. Ask your manager to send the invite again.');
+    if (result.error) return alert(portalCodeError(result.error.message));
     const saved = await withTimeout(
       setPasswordWithSession(password),
       20000,
