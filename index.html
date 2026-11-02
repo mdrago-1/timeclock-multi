@@ -178,12 +178,7 @@
           <div class="logo-small"><img src="time-rogue-logo-white.png" alt="Time Rogue" style="height:64px; width:180px; object-fit:contain; object-position:left center;"></div>
         </div>
         <div id="current-time" class="retro-time"></div>
-        <div class="kiosk-right">
-          <button id="member-btn">Employee login</button>
-          <div class="kiosk-right">
-          <button id="keypad-admin-btn" style="background:transparent; color:white; border:1px solid rgba(255,255,255,0.4); padding:0.4rem 0.8rem;">Admin</button>
-        </div>
-        </div>
+        <div class="kiosk-right"></div>
       </header>
       <div id="pin-section" class="pin-container">
         <h2>Enter Your PIN</h2>
@@ -193,6 +188,9 @@
         <div style="text-align:center; margin:1.5rem 0 0.5rem; padding:0.75rem; background:#f1f5f9; border-radius:8px; font-size:0.85rem; color:#475569;">
           <strong>Add to Home Screen:</strong> On iPhone tap Share → Add to Home Screen. On Android tap the menu (⋮) → Add to Home Screen.
         </div>
+        <p style="text-align:center; margin:0.75rem 0 0;">
+          <button type="button" id="keypad-admin-btn" style="background:transparent; color:#94a3b8; border:none; padding:0.25rem; font-size:0.8rem;">Admin login</button>
+        </p>
       </div>
       <div id="welcome-section" class="welcome-container" style="display:none;">
         <h1 id="welcome-message">Welcome</h1>
@@ -295,7 +293,7 @@
     })();
   </script>
   <script src="config.js?v=2"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 
 <script>
 (function(){
