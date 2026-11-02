@@ -21,7 +21,7 @@ function showNextNotice() {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'app-notice-modal';
-    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:400; display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:6000; display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;';
     modal.innerHTML = `
       <div style="background:#fff; color:#0f172a; border-radius:12px; padding:1.5rem; max-width:380px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.18);">
         <p id="app-notice-msg" style="margin:0 0 1.25rem; line-height:1.45; white-space:pre-wrap;"></p>
@@ -481,7 +481,7 @@ async function updatePasswordFromReset(e) {
     status.style.color = '#dc2626';
     return;
   }
-  const { error } = await db.auth.updateUser({ password: pw });
+  const { error } = await setPasswordWithSession(pw);
   if (error) {
     status.textContent = error.message;
     status.style.color = '#dc2626';
@@ -588,8 +588,34 @@ function showPortalSetup(email, kind) {
   }
 }
 
+async function setPasswordWithSession(password) {
+  const { data: { session } } = await db.auth.getSession();
+  if (!session?.access_token) return { error: { message: 'The code was accepted, but the login did not start. Ask your manager to send the invite again.' } };
+  const res = await fetch(SUPABASE_URL + '/auth/v1/user', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: 'Bearer ' + session.access_token
+    },
+    body: JSON.stringify({ password })
+  });
+  if (res.ok) return { error: null };
+  const body = await res.json().catch(() => ({}));
+  return { error: { message: body.msg || body.error_description || body.message || 'Could not save the password' } };
+}
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
+  ]);
+}
+
 async function submitPortalSetup(e) {
   e.preventDefault();
+  const form = e.target;
+  const button = form.querySelector('button[type="submit"]');
   const email = document.getElementById('portal-setup-email').value.trim();
   const token = document.getElementById('portal-setup-code').value.trim();
   const password = document.getElementById('portal-setup-password').value;
@@ -597,23 +623,41 @@ async function submitPortalSetup(e) {
   const kind = document.getElementById('portal-setup-kind').value || 'invite';
   if (password.length < 8) return alert('Password must be at least 8 characters');
   if (password !== confirm) return alert('Passwords do not match');
-  let { error } = await db.auth.verifyOtp({ email, token, type: kind });
-  if (error) {
-    const other = kind === 'invite' ? 'recovery' : 'invite';
-    const retry = await db.auth.verifyOtp({ email, token, type: other });
-    error = retry.error;
+  if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+  try {
+    let result = await withTimeout(
+      db.auth.verifyOtp({ email, token, type: kind }),
+      20000,
+      'Checking the code took too long. Try again.'
+    );
+    if (result.error) {
+      const other = kind === 'invite' ? 'recovery' : 'invite';
+      result = await withTimeout(
+        db.auth.verifyOtp({ email, token, type: other }),
+        20000,
+        'Checking the code took too long. Try again.'
+      );
+    }
+    if (result.error) return alert(result.error.message || 'That code was not accepted. Ask your manager to send the invite again.');
+    const saved = await withTimeout(
+      setPasswordWithSession(password),
+      20000,
+      'Saving the password took too long. Try again.'
+    );
+    if (saved.error) return alert(saved.error.message);
+    db.auth.signOut({ scope: 'local' }).catch(() => {});
+    const overlay = document.getElementById('portal-setup-overlay');
+    if (overlay) overlay.style.display = 'none';
+    history.replaceState(null, '', window.location.pathname);
+    showMemberLogin();
+    const emailInput = document.getElementById('member-email');
+    if (emailInput) emailInput.value = email;
+    alert('Password saved. On the member portal, log in with this email and the password you just typed. Your clock-in code is the 4-digit number in the email, not this password and not the setup code.');
+  } catch (err) {
+    alert(err.message || 'Could not save the password');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = 'Save password'; }
   }
-  if (error) return alert(error.message || 'That code was not accepted. Ask your manager to send the invite again.');
-  const { error: upErr } = await db.auth.updateUser({ password });
-  if (upErr) return alert(upErr.message);
-  await db.auth.signOut();
-  const overlay = document.getElementById('portal-setup-overlay');
-  if (overlay) overlay.style.display = 'none';
-  history.replaceState(null, '', window.location.pathname);
-  showMemberLogin();
-  const emailInput = document.getElementById('member-email');
-  if (emailInput) emailInput.value = email;
-  alert('Password saved. On the member portal, log in with this email and the password you just typed. Your clock-in code is the 4-digit number in the email, not this password and not the setup code.');
 }
 
 async function memberLogin(e) {
