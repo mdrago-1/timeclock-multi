@@ -894,11 +894,14 @@ async function loadMemberShifts(staffName) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       const dateStr = toDateString(d);
-      const shift = (shifts || []).find(s => s.date === dateStr);
+      const dayShifts = (shifts || []).filter(s => s.date === dateStr && (s.start_time || s.end_time));
       const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      const times = dayShifts.length
+        ? dayShifts.map(s => `${s.start_time || ''} – ${s.end_time || ''}`).join('<br>')
+        : 'Off';
       html += `<tr>
         <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0;">${label}</td>
-        <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${shift?.start_time || shift?.end_time ? (shift.start_time || '') + ' – ' + (shift.end_time || '') : 'Off'}</td>
+        <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${times}</td>
       </tr>`;
     }
     html += '</table></div>';
@@ -2448,21 +2451,22 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
     const dateStr = toDateString(d);
-    const shift = (shifts || []).find(s => s.date === dateStr);
+    const dayShifts = (shifts || []).filter(s => s.date === dateStr && (s.start_time || s.end_time));
     const dayName = days[i];
     const dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    const hrs = hoursBetween(shift?.start_time, shift?.end_time);
+    const hrs = dayShifts.reduce((sum, s) => sum + hoursBetween(s.start_time, s.end_time), 0);
     totalHours += hrs;
+    const times = dayShifts.length
+      ? dayShifts.map(s => `<div style="font-size:1.05rem;">${s.start_time || ''} – ${s.end_time || ''}</div>`).join('')
+        + `<div style="font-size:0.85rem; color:#64748b;">${hrs.toFixed(1)} hrs</div>`
+      : '<div style="color:#94a3b8;">Off</div>';
     html += `<tr>
       <td style="padding:0.75rem 0; border-bottom:1px solid #e2e8f0;">
         <div style="font-size:1.15rem; font-weight:600;">${dayName}</div>
         <div style="font-size:0.9rem; color:#64748b;">${dateLabel}</div>
       </td>
       <td style="padding:0.75rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">
-        ${shift?.start_time || shift?.end_time 
-          ? `<div style="font-size:1.05rem;">${shift.start_time || ''} – ${shift.end_time || ''}</div>
-             <div style="font-size:0.85rem; color:#64748b;">${hrs.toFixed(1)} hrs</div>`
-          : '<div style="color:#94a3b8;">Off</div>'}
+        ${times}
       </td>
     </tr>`;
   }
