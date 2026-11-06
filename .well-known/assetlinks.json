@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.timerogue.timeclock",
+    "sha256_cert_fingerprints": [
+      "75:90:17:F6:AC:B0:97:08:7C:4D:1B:DD:52:F8:7C:8E:46:48:20:87:86:4A:B7:D2:A8:D8:BA:75:76:C5:AF:BF"
+    ]
+  }
+}]
