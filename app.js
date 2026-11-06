@@ -2136,19 +2136,19 @@ async function loadTimesheetSummary() {
   const { data: staff } = await db.from('staff').select('id, name, email').eq('owner_id', currentUser.id).order('name');
   const summary = document.getElementById('timesheet-summary');
   if (!summary) return;
-  if (!clocks?.length) {
-    summary.innerHTML = '<p>No clock data in this range.</p>';
-    return;
-  }
   const byStaff = {};
   (staff || []).forEach(s => byStaff[s.id] = { name: s.name, email: s.email, days: {} });
-  clocks.forEach(c => {
+  (clocks || []).forEach(c => {
     if (!byStaff[c.staff_id]) return;
-    const date = new Date(c.timestamp).toISOString().slice(0,10);
+    const date = toDateString(new Date(c.timestamp));
     if (!byStaff[c.staff_id].days[date]) byStaff[c.staff_id].days[date] = [];
     byStaff[c.staff_id].days[date].push(c);
   });
-  let html = '<h4>Daily Hours Summary</h4><table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>';
+  if (!Object.keys(byStaff).length) {
+    summary.innerHTML = '<p>No employees yet.</p>';
+    return;
+  }
+  let html = `<h4>Daily Hours Summary</h4><p style="color:#64748b; margin-top:0;">Click a day to correct a missed clock-in, break or clock-out.</p><table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>`;
   const dates = [];
   const start = new Date(range.start);
   const end = new Date(range.end);
@@ -2162,15 +2162,198 @@ async function loadTimesheetSummary() {
     html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     let total = 0;
     dates.forEach(date => {
-      const hrs = calculateHours(s.days[date] || []);
+      const entries = s.days[date] || [];
+      const hrs = calculateHours(entries);
+      const open = dayIsOpen(entries);
       total += hrs;
-      html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${hrs > 0 ? hrs.toFixed(1) : ''}</td>`;
+      const label = open && hrs <= 0 ? 'Not out' : (hrs > 0 ? hrs.toFixed(1) : '');
+      const colour = open ? 'color:#b91c1c; font-weight:650;' : '';
+      html += `<td class="day-cell" data-staff="${id}" data-date="${date}" data-name="${esc(s.name)}" title="${open ? 'Not clocked out. Click to correct.' : 'Click to correct times'}" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; cursor:pointer; ${colour}">${label}</td>`;
     });
     html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${total.toFixed(1)}</td>`;
     html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${id}','${s.name}','${s.email || ''}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
   });
   html += '</tbody></table>';
   summary.innerHTML = html;
+  summary.querySelectorAll('.day-cell').forEach(cell => {
+    cell.onclick = () => openDayEditor(cell.dataset.staff, cell.dataset.date, cell.dataset.name);
+  });
+}
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
+}
+
+function dayIsOpen(entries) {
+  if (!entries?.length) return false;
+  const last = [...entries].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).at(-1);
+  return last.type !== 'out';
+}
+
+function clockTimeValue(ts) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function clockStamp(dateStr, hhmm) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [hh, mm] = hhmm.split(':').map(Number);
+  return new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+}
+
+const CLOCK_LABELS = { in: 'Clock in', break_start: 'Break start', break_end: 'Break end', out: 'Clock out' };
+
+let dayEdit = null;
+
+async function openDayEditor(staffId, date, name) {
+  const start = parseLocalDate(date);
+  start.setHours(0, 0, 0, 0);
+  const end = parseLocalDate(date);
+  end.setHours(23, 59, 59, 999);
+  const { data, error } = await db.from('clocks')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('owner_id', currentUser.id)
+    .gte('timestamp', start.toISOString())
+    .lte('timestamp', end.toISOString())
+    .order('timestamp');
+  if (error) return alert(error.message);
+  dayEdit = {
+    staffId,
+    date,
+    name,
+    rows: (data || []).map(c => ({
+      id: c.id,
+      type: c.type,
+      time: clockTimeValue(c.timestamp),
+      loadedTime: clockTimeValue(c.timestamp),
+      loadedType: c.type,
+      originalTimestamp: c.original_timestamp || c.timestamp,
+      adjusted: !!c.adjusted,
+      addedByAdmin: !!c.added_by_admin,
+      isNew: false,
+      deleted: false
+    }))
+  };
+  renderDayEditor();
+}
+
+function renderDayEditor() {
+  let modal = document.getElementById('day-editor');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'day-editor';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:4500; display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;';
+    document.body.appendChild(modal);
+  }
+  const active = dayEdit.rows.filter(r => !r.deleted);
+  const draft = active.map(r => ({ type: r.type, timestamp: clockStamp(dayEdit.date, /^\d{2}:\d{2}$/.test(r.time) ? r.time : '00:00') }));
+  draft.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const hours = calculateHours(draft);
+  const open = active.length > 0 && active.slice().sort((a, b) => a.time.localeCompare(b.time)).at(-1).type !== 'out';
+  const when = parseLocalDate(dayEdit.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const options = Object.entries(CLOCK_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+  modal.innerHTML = `
+    <div style="background:#fff; color:#0f172a; border-radius:12px; padding:1.25rem; max-width:560px; width:100%; max-height:90vh; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+      <h3 style="margin:0;">${esc(when)}</h3>
+      <p style="color:#64748b; margin:0.25rem 0 1rem;">${esc(dayEdit.name)}</p>
+      <div id="day-editor-rows"></div>
+      ${open ? '<p style="background:#fef2f2; color:#b91c1c; border-radius:8px; padding:0.65rem 0.75rem;">Not clocked out. Add a clock-out time to close this day.</p>' : ''}
+      ${active.length === 0 ? '<p style="color:#64748b;">No times yet. Add a clock-in.</p>' : ''}
+      <button type="button" id="day-editor-add" style="margin:0.5rem 0 1rem;">+ Add a time</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
+        <strong>Paid hours: ${hours.toFixed(1)}</strong>
+        <div>
+          <button type="button" id="day-editor-cancel">Cancel</button>
+          <button type="button" id="day-editor-save">Save</button>
+        </div>
+      </div>
+    </div>`;
+  const rows = modal.querySelector('#day-editor-rows');
+  dayEdit.rows.forEach((row, index) => {
+    if (row.deleted) return;
+    const line = document.createElement('div');
+    line.style.cssText = 'display:grid; grid-template-columns:150px 110px 1fr auto; gap:0.5rem; align-items:center; padding:0.55rem 0; border-top:1px solid #e2e8f0;';
+    const note = row.isNew || row.addedByAdmin
+      ? 'Added by admin'
+      : (row.adjusted && row.originalTimestamp ? `Adjusted · was ${clockTimeValue(row.originalTimestamp)}` : '');
+    line.innerHTML = `
+      <select data-field="type" style="padding:0.45rem;">${options}</select>
+      <input data-field="time" type="time" value="${esc(row.time)}" style="padding:0.45rem;">
+      <span style="color:#b45309; font-size:0.8rem;">${esc(note)}</span>
+      <button type="button" data-field="remove" style="background:transparent; color:#94a3b8; border:none;">×</button>`;
+    line.querySelector('[data-field="type"]').value = row.type;
+    line.querySelector('[data-field="type"]').onchange = (e) => { dayEdit.rows[index].type = e.target.value; renderDayEditor(); };
+    line.querySelector('[data-field="time"]').onchange = (e) => { dayEdit.rows[index].time = e.target.value; renderDayEditor(); };
+    line.querySelector('[data-field="remove"]').onclick = () => { dayEdit.rows[index].deleted = true; renderDayEditor(); };
+    rows.appendChild(line);
+  });
+  modal.querySelector('#day-editor-add').onclick = () => {
+    const last = dayEdit.rows.filter(r => !r.deleted).slice().sort((a, b) => a.time.localeCompare(b.time)).at(-1);
+    const next = !last ? 'in' : last.type === 'in' ? 'out' : last.type === 'break_start' ? 'break_end' : last.type === 'break_end' ? 'out' : 'in';
+    dayEdit.rows.push({ id: null, type: next, time: '17:00', isNew: true, deleted: false, addedByAdmin: true, adjusted: false });
+    renderDayEditor();
+  };
+  modal.querySelector('#day-editor-cancel').onclick = () => { modal.style.display = 'none'; };
+  modal.querySelector('#day-editor-save').onclick = saveDayEditor;
+  modal.style.display = 'flex';
+}
+
+async function writeClock(op, payload, id) {
+  const run = (body) => op === 'insert'
+    ? db.from('clocks').insert(body)
+    : db.from('clocks').update(body).eq('id', id);
+  let res = await run(payload);
+  if (res.error && /column|schema cache/i.test(res.error.message)) {
+    const slim = { ...payload };
+    delete slim.adjusted;
+    delete slim.original_timestamp;
+    delete slim.added_by_admin;
+    res = await run(slim);
+  }
+  return res;
+}
+
+async function saveDayEditor() {
+  const active = dayEdit.rows.filter(r => !r.deleted);
+  if (active.some(r => !/^\d{2}:\d{2}$/.test(r.time))) return alert('Enter a time for every row.');
+  const seen = new Set();
+  for (const row of active) {
+    if (seen.has(row.time)) return alert('Two entries cannot have the same time.');
+    seen.add(row.time);
+  }
+  if (active.length && active.slice().sort((a, b) => a.time.localeCompare(b.time))[0].type !== 'in') {
+    return alert('The first time of the day should be a clock-in.');
+  }
+  for (const row of dayEdit.rows) {
+    if (row.deleted) {
+      if (!row.id) continue;
+      const { error } = await db.from('clocks').delete().eq('id', row.id);
+      if (error) return alert(error.message);
+      continue;
+    }
+    if (row.isNew) {
+      const res = await writeClock('insert', {
+        owner_id: currentUser.id,
+        staff_id: dayEdit.staffId,
+        type: row.type,
+        timestamp: clockStamp(dayEdit.date, row.time),
+        added_by_admin: true
+      });
+      if (res.error) return alert(res.error.message);
+      continue;
+    }
+    if (row.time === row.loadedTime && row.type === row.loadedType) continue;
+    const res = await writeClock('update', {
+      type: row.type,
+      timestamp: clockStamp(dayEdit.date, row.time),
+      adjusted: true,
+      original_timestamp: row.originalTimestamp
+    }, row.id);
+    if (res.error) return alert(res.error.message);
+  }
+  document.getElementById('day-editor').style.display = 'none';
+  loadTimesheetSummary();
 }
 
 async function sendTimesheetToMember(staffId, name, email) {
