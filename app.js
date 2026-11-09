@@ -1010,10 +1010,16 @@ async function submitStarterForm(e, staffId) {
     starter_form_data: formData,
     starter_form_completed_at: new Date().toISOString()
   };
-  const { error } = await db.from('staff').update(updates).eq('id', staffId);
-  if (error) return alert(error.message);
-  const { data: row } = await db.from('staff').select('owner_id').eq('id', staffId).single();
-  const ownerId = row?.owner_id;
+  const { data: ownerId, error } = await db.rpc('submit_starter_form', {
+    p_staff_id: staffId,
+    p_data: formData
+  });
+  if (error) {
+    if (/submit_starter_form/i.test(error.message)) {
+      return alert('The form could not be saved yet. Ask your manager to finish the setup, then submit again.');
+    }
+    return alert(error.message);
+  }
   const uploads = [
     [document.getElementById('sf-p45-file')?.files[0], 'p45'],
     [document.getElementById('sf-id-file')?.files[0], 'photo_id']
@@ -1026,13 +1032,13 @@ async function submitStarterForm(e, staffId) {
       alert('Form saved, but the file could not be stored: ' + upErr.message);
       continue;
     }
-    await db.from('documents').insert({
-      owner_id: ownerId,
-      staff_id: staffId,
-      type,
-      file_url: path,
-      file_name: file.name
+    const attached = await db.rpc('attach_staff_document', {
+      p_staff_id: staffId,
+      p_type: type,
+      p_path: path,
+      p_file_name: file.name
     });
+    if (attached.error) alert('Form saved, but the file was not linked: ' + attached.error.message);
   }
   alert('Form submitted and locked. Thank you!');
   showMemberPortal({ ...updates, id: staffId, name: updates.name });
