@@ -101,8 +101,9 @@ Deno.serve(async (req) => {
           <p>Your clock-in code is <strong style="font-size:1.3rem;letter-spacing:0.15em;">${safePin}</strong>.</p>
           <p style="color:#64748b;font-size:0.9rem;">This code is not encrypted. Your manager can see it. You can change it in the employee portal.</p>
           <p>Your portal setup code is <strong style="font-size:1.3rem;letter-spacing:0.12em;">${safeOtp}</strong>.</p>
+          <p style="color:#64748b;font-size:0.85rem;">This setup code expires in 24 hours. Your clock-in code does not expire.</p>
           <p><a href="${setupUrl}" style="display:inline-block;background:#0f172a;color:white;text-decoration:none;padding:0.7rem 1rem;border-radius:8px;">Set portal password</a></p>
-          <p style="color:#64748b;font-size:0.85rem;">Enter that code, choose a password, then log in to the member portal.</p>
+          <p style="color:#64748b;font-size:0.85rem;">Enter that code, choose a password, then log in to the member portal. If it has expired, ask your manager to send the invite again.</p>
         </div>`;
       const data = await sendResend(to, subject || "Your Time Rogue employee portal", inviteHtml);
       return json(data);
