@@ -80,11 +80,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Normal startup only if we didn't handle recovery
     if (!recoveryHandled) {
+      const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       const { data: { session } } = await db.auth.getSession();
       if (session) {
-        currentUser = session.user;
-        await refreshPaidStatus();
-        showKiosk();
+        const { data: profile } = await db.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+        if (profile && path !== '/employee' && path !== '/portal') {
+          currentUser = session.user;
+          await refreshPaidStatus();
+          showAdmin();
+        } else if (!profile) {
+          const rpc = await db.rpc('my_staff_profile');
+          const staff = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+          if (staff) {
+            currentUser = { id: staff.owner_id, email: session.user.email };
+            showMemberPortal(staff);
+          } else if (path === '/employee' || path === '/portal') {
+            showMemberLogin();
+          } else {
+            showAuth();
+          }
+        } else {
+          showMemberLogin();
+        }
+      } else if (path === '/employee' || path === '/portal') {
+        showMemberLogin();
+      } else if (path === '/login') {
+        showAuth();
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) loginModal.style.display = 'flex';
       } else {
         showAuth();
       }
@@ -174,8 +197,10 @@ function setupEventListeners() {
   document.getElementById('add-passkey-btn')?.addEventListener('click', registerPasskey);
   document.getElementById('keypad-admin-btn')?.addEventListener('click', () => {
     window._keypadOwnerId = null;
-    currentUser = null;
     showAuth();
+  });
+  document.getElementById('keypad-employee-btn')?.addEventListener('click', () => {
+    showMemberLogin();
   });
   document.getElementById('keypad-login-submit')?.addEventListener('click', keypadLogin);
   document.getElementById('keypad-cancel')?.addEventListener('click', () => {
@@ -311,15 +336,22 @@ async function refreshPaidStatus() {
   window._inTrial = inTrial;
   window._trialEnds = trialEnd;
   window._plan = full ? 'full' : (isUserPaid ? 'essential' : 'expired');
+  updatePlanLocks();
 }
 
-function isPaid() {
-  // One-off purchase unlocks basic features
-  return isUserPaid;
+function updatePlanLocks() {
+  const locked = !window._subscriptionActive;
+  document.querySelectorAll('.plan-lock').forEach(el => {
+    el.style.display = locked ? 'inline-block' : 'none';
+  });
 }
 
 function hasSubscription() {
   return !!window._subscriptionActive;
+}
+
+function isPaid() {
+  return isUserPaid;
 }
 
 function appConfirm(message) {
@@ -363,7 +395,7 @@ function showPlanChoice() {
         <p style="text-align:center; color:#64748b; margin:0 0 1.25rem;">The 14-day trial includes everything. After that, pick one of these. One site only.</p>
         <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
           <div style="flex:1; min-width:260px; background:white; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
-            <h3 style="margin:0 0 0.5rem;">Essential</h3>
+            <h3 style="margin:0 0 0.5rem;">Essentials</h3>
             <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£19.95</p>
             <p style="color:#64748b; font-size:0.9rem; margin:0.5rem 0 1rem;">One-off. For one site only.</p>
             <ul style="text-align:left; font-size:0.85rem; color:#475569; padding-left:1.2rem; margin:0 0 1rem;">
@@ -371,12 +403,12 @@ function showPlanChoice() {
               <li>Timesheets & hours search</li>
               <li>Shop logo & clock style</li>
             </ul>
-            <button type="button" id="choose-essential" style="width:100%;">Choose Essential</button>
+            <button type="button" id="choose-essential" style="width:100%;">Choose Essentials</button>
           </div>
           <div style="flex:1; min-width:260px; background:#0f172a; color:white; border-radius:12px; padding:1.5rem;">
             <h3 style="margin:0 0 0.5rem;">Full</h3>
             <p style="font-size:1.75rem; font-weight:700; margin:0.25rem 0;">£9.95<span style="font-size:1rem; font-weight:400;">/month</span></p>
-            <p style="color:#cbd5e1; font-size:0.9rem; margin:0.5rem 0 1rem;">For one site only. Everything in Essential plus:</p>
+            <p style="color:#cbd5e1; font-size:0.9rem; margin:0.5rem 0 1rem;">For one site only. Everything in Essentials plus:</p>
             <ul style="text-align:left; font-size:0.85rem; color:#e2e8f0; padding-left:1.2rem; margin:0 0 1rem;">
               <li>Weekly schedule</li>
               <li>New starter forms</li>
@@ -1277,7 +1309,9 @@ async function recordAction(type) {
     p_pin: currentPin
   });
   if (error) return showStatus(error.message || 'Error recording', 'error');
-  showStatus(`${currentStaff.name} recorded`);
+  const labels = { in: 'Clocked in', out: 'Clocked out', break_start: 'Break started', break_end: 'Break ended' };
+  const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  showStatus(`${labels[type] || 'Recorded'} at ${time}, ${currentStaff.name}`);
   setTimeout(showPin, 1500);
 }
 
@@ -1320,17 +1354,13 @@ async function updateShopLogo() {
   }
   document.querySelectorAll('.shop-logo-placeholder').forEach(el => {
     if (logoUrl) {
-      const h = el.classList.contains('auth-shop-logo') ? '96px' : '64px';
-      const w = el.classList.contains('auth-shop-logo') ? '280px' : '180px';
-      el.innerHTML = `<img src="${logoUrl}" alt="Shop logo" style="height:${h}; width:${w}; object-fit:contain; object-position:center;">`;
-      el.style.background = 'transparent';
-      el.style.width = w;
-      el.style.height = h;
+      el.classList.add('has-logo');
+      el.style.display = 'flex';
+      el.innerHTML = `<img src="${logoUrl}" alt="">`;
     } else {
-      el.textContent = 'Shop';
-      el.style.background = '#f59e0b';
-      el.style.width = el.classList.contains('auth-shop-logo') ? '280px' : '180px';
-      el.style.height = el.classList.contains('auth-shop-logo') ? '96px' : '64px';
+      el.classList.remove('has-logo');
+      el.style.display = 'none';
+      el.textContent = '';
     }
   });
 }
@@ -1352,18 +1382,46 @@ async function applyClockStyle() {
   });
 }
 
+function accruedHolidayDays(startDateStr, yearStart) {
+  const now = new Date();
+  const [mm, dd] = String(yearStart || '01-01').split('-').map(Number);
+  const yearStartDate = new Date(now.getFullYear(), (mm || 1) - 1, dd || 1);
+  if (yearStartDate > now) yearStartDate.setFullYear(yearStartDate.getFullYear() - 1);
+  const yearEnd = new Date(yearStartDate);
+  yearEnd.setFullYear(yearEnd.getFullYear() + 1);
+  let from = yearStartDate;
+  if (startDateStr) {
+    const emp = new Date(startDateStr + 'T00:00:00');
+    if (!Number.isNaN(emp.getTime()) && emp > from) from = emp;
+  }
+  if (now <= from) return 0;
+  const yearDays = (yearEnd - yearStartDate) / 86400000;
+  const worked = (now - from) / 86400000;
+  return Math.round(Math.min(28, (worked / yearDays) * 28) * 10) / 10;
+}
+
+function formatStamp(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 async function loadHoliday() {
   const tab = document.getElementById('holiday-tab');
   if (!tab) return;
+  const { data: profile } = await db.from('profiles').select('holiday_year_start').eq('id', currentUser.id).maybeSingle();
+  const yearStart = profile?.holiday_year_start || '01-01';
   const { data: staff } = await db.from('staff').select('*').eq('owner_id', currentUser.id).eq('archived', false).order('name');
-  let html = '<h3>Holiday</h3><table style="width:100%; border-collapse:collapse; margin-top:1rem;"><thead><tr style="background:#f8fafc;"><th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e2e8f0;">Name</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Type</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Hours</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Accrued</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Taken</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Remaining</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Booked</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;"></th></tr></thead><tbody>';
+  let html = '<h3>Holiday</h3><table style="width:100%; border-collapse:collapse; margin-top:1rem;"><thead><tr style="background:#f8fafc;"><th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e2e8f0;">Name</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Type</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Hours worked</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Accrued (days)</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Taken (days)</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Remaining (days)</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">Booked (days)</th><th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;"></th></tr></thead><tbody>';
   for (const s of staff || []) {
     const type = s.worker_type === 'hourly' || s.worker_type === 'irregular' ? 'hourly' : 'salaried';
-    const { data: clocks } = await db.from('clocks').select('timestamp').eq('staff_id', s.id);
-    const hours = clocks?.length ? (clocks.length * 0.5) : 0;
+    const { data: clocks } = await db.from('clocks').select('timestamp, type').eq('staff_id', s.id).order('timestamp');
+    const hours = calculateHours(clocks || []);
     const startDate = s.starter_form_data?.agreed_start_date;
-    const months = startDate ? Math.max(1, Math.min(12, Math.round((Date.now() - new Date(startDate)) / (1000*60*60*24*30)))) : 12;
-    const accrued = type === 'salaried' ? Math.round((months / 12) * 28 * 10) / 10 : Math.round(hours * 0.1207 / 8 * 10) / 10;
+    const accrued = type === 'salaried'
+      ? accruedHolidayDays(startDate, yearStart)
+      : Math.round(hours * 0.1207 / 8 * 10) / 10;
     const taken = s.holiday_taken || 0;
     const periods = s.holiday_booked || [];
     let bookedDays = 0;
@@ -1888,7 +1946,12 @@ async function openEmployeeProfile(staffId) {
       <label>Date of Birth<br><input type="date" id="edit-dob" value="${staff.dob || ''}" style="width:100%;"></label>
       <label>Address<br><textarea id="edit-address" style="width:100%; min-height:80px;">${staff.address || ''}</textarea></label>
       <label>Email<br><input type="email" id="edit-email" value="${staff.email || ''}" style="width:100%;"></label>
-      <label>Clock-in PIN<br><input type="text" id="edit-pin" inputmode="numeric" maxlength="4" value="${staff.pin || ''}" style="width:120px;"></label>
+      <label>Clock-in PIN<br>
+        <span style="display:flex; gap:0.5rem; align-items:center;">
+          <input type="password" id="edit-pin" inputmode="numeric" maxlength="4" autocomplete="off" value="${staff.pin || ''}" style="width:120px;">
+          <button type="button" id="show-pin-btn">Show</button>
+        </span>
+      </label>
       <p style="font-size:0.8rem; color:#64748b; margin:0;">This code is not encrypted. Anyone who can open this profile can see it.</p>
       <button type="button" onclick="resetStaffPin('${staffId}')">Reset PIN</button>
       <label>Agreed start date<br><input type="date" id="edit-start" value="${staff.starter_form_data?.agreed_start_date || ''}" style="width:100%;" onchange="saveAgreedTerms('${staffId}')"></label>
@@ -1897,7 +1960,8 @@ async function openEmployeeProfile(staffId) {
       <label>Photo<br><input type="file" id="photo-upload" accept="image/*"></label>
       <button type="submit">Save Details</button>
     </form>
-    <button type="button" onclick="sendPasswordInvite('${staffId}')" style="margin-top:1rem;">Send Invite / Reset Password</button>
+    <button type="button" id="send-invite-btn" style="margin-top:1rem;">Send Invite / Reset Password</button>
+    <p id="invite-sent-note" style="color:#16a34a; font-size:0.85rem; min-height:1.2em;">${staff.starter_form_data?.invite_sent_at ? 'Invite sent at ' + formatStamp(staff.starter_form_data.invite_sent_at) : ''}</p>
     ${staff.starter_form_completed ? renderStarterFormMirror(staff.starter_form_data, staff.starter_form_completed_at) : ''}
     <h4 style="margin-top:2rem;">Documents</h4>
     <div id="docs-list">${docsHtml}</div>
@@ -1909,20 +1973,41 @@ async function openEmployeeProfile(staffId) {
   `;
   document.getElementById('edit-profile').onsubmit = (e) => saveProfile(e, staffId);
   document.getElementById('upload-doc').onsubmit = (e) => uploadDocument(e, staffId);
+  document.getElementById('show-pin-btn').onclick = () => {
+    const input = document.getElementById('edit-pin');
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    document.getElementById('show-pin-btn').textContent = showing ? 'Show' : 'Hide';
+  };
+  document.getElementById('send-invite-btn').onclick = () => sendPasswordInvite(staffId);
 }
 
 async function sendPasswordInvite(staffId) {
+  const button = document.getElementById('send-invite-btn');
   const { data: staff } = await db.from('staff').select('email, starter_form_data, hourly_rate').eq('id', staffId).single();
   if (!staff?.email) return alert('Add an email address first');
   const start = staff.starter_form_data?.agreed_start_date || '';
   const rate = staff.starter_form_data?.agreed_pay_rate || staff.hourly_rate || '';
   if (!start || !(parseFloat(rate) > 0)) return alert('Set the agreed start date and pay rate before sending the invite.');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Sending…';
+  }
   try {
     await sendEmail({ action: 'portal-invite', staff_id: staffId });
   } catch (err) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Send Invite / Reset Password';
+    }
     return alert('Invite failed: ' + (err.message || err));
   }
-  alert('Invite sent to ' + staff.email + '. It includes their start date, pay rate, clock-in code and portal setup code.');
+  const sentAt = new Date().toISOString();
+  await db.from('staff').update({
+    starter_form_data: { ...(staff.starter_form_data || {}), invite_sent_at: sentAt }
+  }).eq('id', staffId);
+  alert('Invite sent to ' + staff.email + '.');
+  openEmployeeProfile(staffId);
 }
 window.sendPasswordInvite = sendPasswordInvite;
 
@@ -2480,8 +2565,8 @@ async function loadSchedule() {
           totalHours += hoursBetween(start, end);
           table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
             <div style="font-size:0.65rem; color:#94a3b8;">Shift</div>
-            <input type="time" class="shift-start" data-date="${date}" value="${start}" style="width:72px; font-size:0.75rem;">
-            <br><input type="time" class="shift-end" data-date="${date}" value="${end}" style="width:72px; font-size:0.75rem; margin-top:2px;">
+            <input type="time" class="shift-start shift-time" data-date="${date}" value="${start}">
+            <br><input type="time" class="shift-end shift-time" data-date="${date}" value="${end}">
           </div>`;
         });
         table += `</div>
@@ -2507,7 +2592,8 @@ async function loadSchedule() {
   </tr>`;
   table += '</tbody></table></div>';
   table += `<div style="margin-bottom:1.5rem;">
-    <button onclick="saveScheduleTable()" style="background:#0f172a; color:white;">Save Schedule</button>
+    <button type="button" onclick="saveScheduleTable(true)" style="background:#0f172a; color:white;">Save Schedule</button>
+    <span id="schedule-saved" style="margin-left:0.75rem; color:#16a34a; font-weight:600;"></span>
     <button onclick="sendToAllTeam()" style="margin-left:0.5rem; background:#0f172a; color:white;">Send to member portal</button>
   </div>`;
   table += `<div style="border-top:1px solid #e2e8f0; padding-top:1.5rem;">
@@ -2528,8 +2614,8 @@ async function loadSchedule() {
       extra.style.display = 'inline-block';
       extra.style.marginLeft = '4px';
       extra.innerHTML = `
-        <input type="time" class="shift-start" data-date="${date}" style="width:72px; font-size:0.75rem;">
-        <br><input type="time" class="shift-end" data-date="${date}" style="width:72px; font-size:0.75rem; margin-top:2px;">
+        <input type="time" class="shift-start shift-time" data-date="${date}">
+        <br><input type="time" class="shift-end shift-time" data-date="${date}">
       `;
       const flex = btn.previousElementSibling;
       if (flex) flex.appendChild(extra);
@@ -2679,7 +2765,7 @@ async function sendToAllTeam() {
 }
 window.sendToAllTeam = sendToAllTeam;
 
-async function saveScheduleTable() {
+async function saveScheduleTable(showMessage) {
   const week = getWeekRange(currentWeekOffset);
   const rows = document.querySelectorAll('#schedule-tab tbody tr');
   const toInsert = [];
@@ -2702,7 +2788,13 @@ async function saveScheduleTable() {
     const { error } = await db.from('schedules').insert(toInsert);
     if (error) return alert(error.message);
   }
-  // auto-saved
+  if (showMessage) {
+    const note = document.getElementById('schedule-saved');
+    if (note) {
+      note.textContent = 'Schedule saved';
+      setTimeout(() => { if (note.textContent === 'Schedule saved') note.textContent = ''; }, 2500);
+    }
+  }
 }
 window.saveScheduleTable = saveScheduleTable;
 
