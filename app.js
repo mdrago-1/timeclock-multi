@@ -43,7 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyClockStyle();
 
     const setupParams = new URLSearchParams(window.location.search);
-    if (setupParams.get('portal-setup') === '1') {
+    const isPortalSetup = setupParams.get('portal-setup') === '1';
+    if (isPortalSetup) {
       showPortalSetup(setupParams.get('email') || '', setupParams.get('kind') || 'invite');
     }
 
@@ -78,8 +79,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // Normal startup only if we didn't handle recovery
-    if (!recoveryHandled) {
+    // Normal startup only if we didn't handle recovery or a portal setup link
+    if (!recoveryHandled && !isPortalSetup) {
       const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       const { data: { session } } = await db.auth.getSession();
       if (session) {
@@ -158,6 +159,8 @@ function setupEventListeners() {
   document.getElementById('portal-setup-cancel')?.addEventListener('click', () => {
     const overlay = document.getElementById('portal-setup-overlay');
     if (overlay) overlay.style.display = 'none';
+    history.replaceState(null, '', '/');
+    showMemberLogin();
   });
   document.getElementById('login-cancel')?.addEventListener('click', () => {
     const m = document.getElementById('login-modal');
@@ -214,7 +217,13 @@ function setupEventListeners() {
   document.getElementById('home-member-btn')?.addEventListener('click', showMemberLogin);
   document.getElementById('cancel-admin')?.addEventListener('click', showChooser);
   document.getElementById('cancel-member')?.addEventListener('click', showAuth);
-  document.getElementById('exit-member')?.addEventListener('click', showAuth);
+  document.getElementById('exit-member')?.addEventListener('click', async () => {
+    currentUser = null;
+    currentStaff = null;
+    window._keypadOwnerId = null;
+    try { await db.auth.signOut(); } catch (err) { /* still leave the portal */ }
+    showAuth();
+  });
 
   const adminPwForm = document.getElementById('admin-password-form');
   if (adminPwForm) {
@@ -606,9 +615,11 @@ function showMemberLogin() {
 }
 
 function showPortalSetup(email, kind) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const overlay = document.getElementById('portal-setup-overlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
+  overlay.style.background = '#f8fafc';
   const emailInput = document.getElementById('portal-setup-email');
   const kindInput = document.getElementById('portal-setup-kind');
   if (emailInput && email) emailInput.value = email;
