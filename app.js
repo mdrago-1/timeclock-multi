@@ -1206,20 +1206,14 @@ function handleKey(d) {
 
 async function validatePin() {
   if (currentPin.length !== 4 || !currentUser) return;
-  let staff = null;
-  if (window._keypadOwnerId) {
-    const { data } = await db.rpc('keypad_staff', { p_owner_id: window._keypadOwnerId });
-    staff = (data || []).find(s => String(s.pin || '').trim() === currentPin);
-  } else {
-    const { data, error } = await db.from('staff')
-      .select('*')
-      .eq('pin', currentPin)
-      .eq('owner_id', currentUser.id)
-      .single();
-    if (!error) staff = data;
-  }
-  if (!staff) {
-    showStatus('Invalid PIN', 'error');
+  const ownerId = window._keypadOwnerId || currentUser.id;
+  const { data, error } = await db.rpc('keypad_verify_pin', {
+    p_owner_id: ownerId,
+    p_pin: currentPin
+  });
+  const staff = Array.isArray(data) ? data[0] : data;
+  if (error || !staff) {
+    showStatus(error?.message || 'Invalid PIN', 'error');
     currentPin = '';
     updatePinDots();
     return;
@@ -1266,33 +1260,23 @@ async function showActions() {
 }
 
 async function recordAction(type) {
-  if (window._keypadOwnerId && (type === 'in' || type === 'out')) {
-    const { data: allowed } = await db.rpc('keypad_can_clock', { p_owner_id: window._keypadOwnerId });
+  const ownerId = window._keypadOwnerId || currentUser.id;
+  if (type === 'in' || type === 'out') {
+    const { data: allowed } = await db.rpc('keypad_can_clock', { p_owner_id: ownerId });
     if (allowed === false) return showStatus('Clock-in is locked. The site trial has ended or the plan does not include it.', 'error');
-    const { data: geo } = await db.rpc('keypad_geofence', { p_owner_id: window._keypadOwnerId });
+    const { data: geo } = await db.rpc('keypad_geofence', { p_owner_id: ownerId });
     if (geo?.geofence_enabled && geo.geofence_lat && geo.geofence_lng) {
       const ok = await checkGeofence(geo.geofence_lat, geo.geofence_lng);
       if (!ok) return showStatus('You must be within 50m of the workplace to clock ' + type, 'error');
     }
   }
-  let error = null;
-  if (window._keypadOwnerId) {
-    const res = await db.rpc('keypad_clock', {
-      p_owner_id: window._keypadOwnerId,
-      p_staff_id: currentStaff.id,
-      p_type: type
-    });
-    error = res.error;
-  } else {
-    const res = await db.from('clocks').insert({
-      owner_id: currentUser.id,
-      staff_id: currentStaff.id,
-      type,
-      timestamp: new Date().toISOString()
-    });
-    error = res.error;
-  }
-  if (error) return showStatus('Error recording', 'error');
+  const { error } = await db.rpc('keypad_clock', {
+    p_owner_id: ownerId,
+    p_staff_id: currentStaff.id,
+    p_type: type,
+    p_pin: currentPin
+  });
+  if (error) return showStatus(error.message || 'Error recording', 'error');
   showStatus(`${currentStaff.name} recorded`);
   setTimeout(showPin, 1500);
 }
