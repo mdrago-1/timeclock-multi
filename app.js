@@ -1928,20 +1928,13 @@ async function openEmployeeProfile(staffId) {
 }
 
 async function sendPasswordInvite(staffId) {
-  const { data: staff } = await db.from('staff').select('email, name, pin, hourly_rate, starter_form_data').eq('id', staffId).single();
+  const { data: staff } = await db.from('staff').select('email, starter_form_data, hourly_rate').eq('id', staffId).single();
   if (!staff?.email) return alert('Add an email address first');
   const start = staff.starter_form_data?.agreed_start_date || '';
   const rate = staff.starter_form_data?.agreed_pay_rate || staff.hourly_rate || '';
   if (!start || !(parseFloat(rate) > 0)) return alert('Set the agreed start date and pay rate before sending the invite.');
-  const startLabel = new Date(start + 'T00:00:00').toLocaleDateString('en-GB');
   try {
-    await sendEmail(staff.email, 'Your Time Rogue employee portal', '', {
-      action: 'portal-invite',
-      name: staff.name || '',
-      pin: staff.pin || '',
-      startDate: startLabel,
-      payRate: String(rate)
-    });
+    await sendEmail({ action: 'portal-invite', staff_id: staffId });
   } catch (err) {
     return alert('Invite failed: ' + (err.message || err));
   }
@@ -2366,35 +2359,13 @@ async function sendTimesheetToMember(staffId, name, email) {
   if (!email) return alert('No email on file for ' + name);
   const range = getDateRange();
   if (!range) return alert('Select a date range first');
-  const { data: clocks } = await db.from('clocks')
-    .select('*')
-    .eq('staff_id', staffId)
-    .gte('timestamp', range.start.toISOString())
-    .lte('timestamp', range.end.toISOString())
-    .order('timestamp');
-  const byDate = {};
-  (clocks || []).forEach(c => {
-    const date = new Date(c.timestamp).toISOString().slice(0,10);
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(c);
-  });
-  let html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:480px; margin:0 auto; color:#1e293b;">
-    <h1 style="font-size:1.4rem;">Your Hours</h1>
-    <p style="color:#64748b;">${formatDate(range.start)} – ${formatDate(range.end)}</p>
-    <table style="width:100%; border-collapse:collapse; margin-top:1rem;">`;
-  let total = 0;
-  Object.keys(byDate).sort().forEach(date => {
-    const hrs = calculateHours(byDate[date]);
-    total += hrs;
-    html += `<tr>
-      <td style="padding:0.6rem 0; border-bottom:1px solid #e2e8f0;">${new Date(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</td>
-      <td style="padding:0.6rem 0; border-bottom:1px solid #e2e8f0; text-align:right;">${hrs.toFixed(1)} hrs</td>
-    </tr>`;
-  });
-  html += `<tr><td style="padding:0.8rem 0; font-weight:600;">Total</td><td style="padding:0.8rem 0; text-align:right; font-weight:600;">${total.toFixed(1)} hrs</td></tr></table>
-  <p style="color:#94a3b8; font-size:0.85rem; margin-top:1.5rem;">Sent from Time Rogue</p></div>`;
   try {
-    await sendEmail(email, `Your hours – ${formatDate(range.start)}`, html);
+    await sendEmail({
+      action: 'timesheet',
+      staff_id: staffId,
+      start_iso: range.start.toISOString(),
+      end_iso: range.end.toISOString()
+    });
     alert('Timesheet sent to ' + name);
   } catch (err) {
     alert('Failed to send: ' + (err.message || err));
@@ -2541,7 +2512,7 @@ async function loadSchedule() {
     grandTotalWage += wage;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
-    table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendShiftsToMember('${s.name}','${s.email || ''}')" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendShiftsToMember('${s.id}')" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
     table += '</tr>';
   });
   table += `<tr style="background:#f1f5f9; font-weight:700;">
@@ -2668,15 +2639,19 @@ function buildShiftEmailHtml(shifts, weekStart, weekEnd) {
   return html;
 }
 
-async function sendEmail(to, subject, html, extra) {
+async function sendEmail(payload) {
+  const { data: sessionData } = await db.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error('Please log in and try again');
   const url = 'https://bpljlflxkntyhyoekpkd.supabase.co/functions/v1/Send-Schedule';
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
+      'apikey': SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({ to, subject, html, ...(extra || {}) }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -2685,22 +2660,16 @@ async function sendEmail(to, subject, html, extra) {
   return data;
 }
 
-async function sendShiftsToMember(name, email) {
-  if (!email) return alert('No email on file for ' + name);
+async function sendShiftsToMember(staffId) {
   const week = getWeekRange(currentWeekOffset);
-  const startDate = toDateString(week.start);
-  const endDate = toDateString(week.end);
-  const { data: schedules } = await db.from('schedules')
-    .select('*')
-    .eq('owner_id', currentUser.id)
-    .eq('name', name)
-    .gte('date', startDate)
-    .lte('date', endDate)
-    .order('date');
-  const html = buildShiftEmailHtml(schedules, week.start, week.end);
   try {
-    await sendEmail(email, `Your shifts – ${formatDate(week.start)}`, html);
-    alert('Shifts sent to ' + name);
+    await sendEmail({
+      action: 'shifts',
+      staff_id: staffId,
+      start_date: toDateString(week.start),
+      end_date: toDateString(week.end)
+    });
+    alert('Shifts sent');
   } catch (err) {
     alert('Failed to send: ' + (err.message || err));
   }
@@ -2708,23 +2677,15 @@ async function sendShiftsToMember(name, email) {
 window.sendShiftsToMember = sendShiftsToMember;
 
 async function sendToAllTeam() {
-  const { data: staff } = await db.from('staff').select('name, email').eq('owner_id', currentUser.id);
+  const { data: staff } = await db.from('staff').select('id, email').eq('owner_id', currentUser.id);
   const week = getWeekRange(currentWeekOffset);
   const startDate = toDateString(week.start);
   const endDate = toDateString(week.end);
-  const { data: schedules } = await db.from('schedules')
-    .select('*')
-    .eq('owner_id', currentUser.id)
-    .gte('date', startDate)
-    .lte('date', endDate)
-    .order('date');
   let sent = 0;
   for (const s of staff || []) {
     if (!s.email) continue;
-    const myShifts = (schedules || []).filter(sc => sc.name === s.name);
-    const html = buildShiftEmailHtml(myShifts, week.start, week.end);
     try {
-      await sendEmail(s.email, `Your shifts – ${formatDate(week.start)}`, html);
+      await sendEmail({ action: 'shifts', staff_id: s.id, start_date: startDate, end_date: endDate });
       sent++;
     } catch (err) {
       console.error(err);
