@@ -1777,6 +1777,12 @@ async function loadStaff() {
       <input type="text" id="staff-first" placeholder="First Name" required>
       <input type="text" id="staff-last" placeholder="Last Name" required>
       <input type="text" id="staff-pin" placeholder="4-digit PIN" maxlength="4" required>
+      <label>Pay type<br>
+        <select id="staff-worker-type">
+          <option value="hourly" selected>Hourly</option>
+          <option value="salaried">Salaried</option>
+        </select>
+      </label>
       <button type="submit">Add Employee</button>
       <button type="button" id="cancel-add-staff" style="background:transparent; color:#64748b;">Cancel</button>
     </form>
@@ -1810,7 +1816,8 @@ async function addStaff(e) {
   const last = document.getElementById('staff-last').value.trim();
   const pin = document.getElementById('staff-pin').value;
   const name = `${first} ${last}`;
-  const { error } = await db.from('staff').insert({ owner_id: currentUser.id, name, pin });
+  const workerType = document.getElementById('staff-worker-type')?.value === 'salaried' ? 'salaried' : 'hourly';
+  const { error } = await db.from('staff').insert({ owner_id: currentUser.id, name, pin, worker_type: workerType });
   if (error) return alert(error.message);
   loadStaff();
 }
@@ -1946,8 +1953,8 @@ async function openEmployeeProfile(staffId) {
     ${staff.statutory_received ? '<p style="color:#16a34a;">Statutory documents received</p>' : '<p style="color:#94a3b8;">Statutory documents not yet sent</p>'}
     <label style="display:block; margin:0.75rem 0;">Worker type
       <select id="worker-type-${staffId}" style="margin-left:0.5rem;" onchange="saveWorkerType('${staffId}')">
-        <option value="salaried" ${staff.worker_type==='salaried'?'selected':''}>Salaried</option>
         <option value="hourly" ${staff.worker_type==='hourly'||staff.worker_type==='irregular'?'selected':''}>Hourly</option>
+        <option value="salaried" ${staff.worker_type==='salaried'||!staff.worker_type?'selected':''}>Salaried</option>
       </select>
     </label>
     ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
@@ -2559,6 +2566,8 @@ async function loadSchedule() {
         </tr></thead>
         <tbody>`;
   let grandTotalWage = 0;
+  const dayWages = {};
+  dayDates.forEach(date => { dayWages[date] = 0; });
   (staff || []).forEach(s => {
     let totalHours = 0;
     table += `<tr data-name="${s.name}" data-rate="${parseFloat(s.hourly_rate) || 0}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
@@ -2573,7 +2582,9 @@ async function loadSchedule() {
         dayShifts.forEach(shift => {
           const start = shift.start_time || '';
           const end = shift.end_time || '';
-          totalHours += hoursBetween(start, end);
+          const shiftHours = hoursBetween(start, end);
+          totalHours += shiftHours;
+          dayWages[date] += shiftHours * (parseFloat(s.hourly_rate) || 0);
           table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
             <div style="font-size:0.65rem; color:#94a3b8;">Shift</div>
             <input type="time" class="shift-start shift-time" data-date="${date}" value="${start}">
@@ -2595,11 +2606,12 @@ async function loadSchedule() {
     table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendShiftsToMember('${s.id}')" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
     table += '</tr>';
   });
-  table += `<tr style="background:#f1f5f9; font-weight:700;">
-    <td style="border:1px solid #e2e8f0; padding:0.5rem;" colspan="${dayDates.length + 1}">Weekly Total</td>
-    <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;"></td>
-    <td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
-    <td></td>
+  table += `<tr style="background:#f8fafc; font-weight:700;">
+    <td style="border:1px solid #e2e8f0; padding:0.5rem;">Daily cost</td>
+    ${dayDates.map(date => `<td class="day-cost" data-date="${date}" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${(dayWages[date] || 0).toFixed(2)}</td>`).join('')}
+    <td style="border:1px solid #e2e8f0; padding:0.5rem;"></td>
+    <td id="schedule-week-total" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${grandTotalWage.toFixed(2)}</td>
+    <td style="border:1px solid #e2e8f0; padding:0.5rem;"></td>
   </tr>`;
   table += '</tbody></table></div>';
   table += `<div style="margin-bottom:1.5rem;">
@@ -2631,7 +2643,10 @@ async function loadSchedule() {
       const flex = btn.previousElementSibling;
       if (flex) flex.appendChild(extra);
       // auto-save on the new inputs
-      extra.querySelectorAll('input').forEach(inp => inp.onchange = () => saveScheduleTable());
+      extra.querySelectorAll('input').forEach(inp => inp.onchange = () => {
+        updateScheduleTotals();
+        saveScheduleTable();
+      });
     };
   });
   // Auto-save when any existing time changes
@@ -2646,14 +2661,18 @@ async function loadSchedule() {
 function updateScheduleTotals() {
   const rows = document.querySelectorAll('#schedule-tab tbody tr[data-name]');
   let grand = 0;
+  const dayTotals = {};
   rows.forEach(row => {
     let hours = 0;
     const starts = row.querySelectorAll('.shift-start');
     const ends = row.querySelectorAll('.shift-end');
-    starts.forEach((inp, i) => {
-      hours += hoursBetween(inp.value, ends[i]?.value);
-    });
     const rate = parseFloat(row.dataset.rate) || 0;
+    starts.forEach((inp, i) => {
+      const shiftHours = hoursBetween(inp.value, ends[i]?.value);
+      hours += shiftHours;
+      const date = inp.dataset.date;
+      if (date) dayTotals[date] = (dayTotals[date] || 0) + (shiftHours * rate);
+    });
     const wage = hours * rate;
     grand += wage;
     const cells = row.querySelectorAll('td');
@@ -2662,11 +2681,11 @@ function updateScheduleTotals() {
       cells[cells.length - 2].textContent = '£' + wage.toFixed(2);
     }
   });
-  const totalRow = document.querySelector('#schedule-tab tbody tr:last-child');
-  if (totalRow) {
-    const tds = totalRow.querySelectorAll('td');
-    if (tds.length >= 2) tds[tds.length - 2].textContent = '£' + grand.toFixed(2);
-  }
+  document.querySelectorAll('#schedule-tab .day-cost').forEach(cell => {
+    cell.textContent = '£' + ((dayTotals[cell.dataset.date] || 0).toFixed(2));
+  });
+  const weekTotal = document.getElementById('schedule-week-total');
+  if (weekTotal) weekTotal.textContent = '£' + grand.toFixed(2);
 }
 
 async function publishWeek(weekStart) {
