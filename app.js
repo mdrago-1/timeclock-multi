@@ -904,32 +904,29 @@ function showMemberPortal(staff) {
   loadMemberHours(staff.id);
 }
 
-async function loadMemberShifts(staffName) {
+async function loadMemberShifts() {
   const el = document.getElementById('member-shifts');
   if (!el) return;
-  const { data: published } = await db.from('published_weeks')
-    .select('week_start')
-    .eq('owner_id', currentUser.id)
-    .order('week_start', { ascending: false })
-    .limit(4);
-  if (!published?.length) {
+  const { data, error } = await db.rpc('my_shifts');
+  if (error || !data?.length) {
     el.innerHTML = '<p>No published timetable yet.</p>';
     return;
   }
+  const weeks = [];
+  data.forEach(row => {
+    const key = String(row.week_start).slice(0, 10);
+    let week = weeks.find(w => w.start === key);
+    if (!week) {
+      week = { start: key, shifts: [] };
+      weeks.push(week);
+    }
+    if (row.date) week.shifts.push(row);
+  });
   let html = '';
-  for (const p of published) {
-    const start = parseLocalDate(p.week_start);
+  weeks.forEach(week => {
+    const start = parseLocalDate(week.start);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
-    const startStr = toDateString(start);
-    const endStr = toDateString(end);
-    const { data: shifts } = await db.from('schedules')
-      .select('*')
-      .eq('owner_id', currentUser.id)
-      .eq('name', staffName)
-      .gte('date', startStr)
-      .lte('date', endStr)
-      .order('date');
     html += `<div style="margin-bottom:1.5rem; padding:0.75rem; background:#f8fafc; border-radius:8px;">
       <strong>${formatDate(start)} – ${formatDate(end)}</strong>
       <table style="width:100%; margin-top:0.5rem; border-collapse:collapse;">`;
@@ -937,10 +934,10 @@ async function loadMemberShifts(staffName) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       const dateStr = toDateString(d);
-      const dayShifts = (shifts || []).filter(s => s.date === dateStr && (s.start_time || s.end_time));
+      const dayShifts = week.shifts.filter(s => String(s.date).slice(0, 10) === dateStr && (s.start_time || s.end_time));
       const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       const times = dayShifts.length
-        ? dayShifts.map(s => `${s.start_time || ''} – ${s.end_time || ''}`).join('<br>')
+        ? dayShifts.map(s => `${(s.start_time || '').slice(0, 5)} – ${(s.end_time || '').slice(0, 5)}`).join('<br>')
         : 'Off';
       html += `<tr>
         <td style="padding:0.4rem 0; border-bottom:1px solid #e2e8f0;">${label}</td>
@@ -948,7 +945,7 @@ async function loadMemberShifts(staffName) {
       </tr>`;
     }
     html += '</table></div>';
-  }
+  });
   el.innerHTML = html;
 }
 
@@ -2603,7 +2600,7 @@ async function loadSchedule() {
     grandTotalWage += wage;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
-    table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendShiftsToMember('${s.id}')" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button type="button" onclick="sendShiftsToMember('${s.id}', this)" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
     table += '</tr>';
   });
   table += `<tr style="background:#f8fafc; font-weight:700;">
@@ -2760,8 +2757,22 @@ async function sendEmail(payload) {
   return data;
 }
 
-async function sendShiftsToMember(staffId) {
+async function publishCurrentWeek() {
   const week = getWeekRange(currentWeekOffset);
+  const { error } = await db.from('published_weeks').upsert({
+    owner_id: currentUser.id,
+    week_start: toDateString(week.start),
+    published_at: new Date().toISOString()
+  }, { onConflict: 'owner_id,week_start' });
+  return error;
+}
+
+async function sendShiftsToMember(staffId, button) {
+  const week = getWeekRange(currentWeekOffset);
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Sending…';
+  }
   try {
     await sendEmail({
       action: 'shifts',
@@ -2769,9 +2780,16 @@ async function sendShiftsToMember(staffId) {
       start_date: toDateString(week.start),
       end_date: toDateString(week.end)
     });
+    const published = await publishCurrentWeek();
+    if (published) return alert('Email sent, but the portal was not updated: ' + published.message);
     alert('Shifts sent');
   } catch (err) {
     alert('Failed to send: ' + (err.message || err));
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Send to member';
+    }
   }
 }
 window.sendShiftsToMember = sendShiftsToMember;
@@ -2791,6 +2809,7 @@ async function sendToAllTeam() {
       console.error(err);
     }
   }
+  await publishCurrentWeek();
   alert(`Sent to ${sent} team members`);
 }
 window.sendToAllTeam = sendToAllTeam;
