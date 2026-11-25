@@ -2567,7 +2567,7 @@ async function loadSchedule() {
   dayDates.forEach(date => { dayWages[date] = 0; });
   (staff || []).forEach(s => {
     let totalHours = 0;
-    table += `<tr data-name="${s.name}" data-rate="${parseFloat(s.hourly_rate) || 0}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
+    table += `<tr data-id="${s.id}" data-name="${s.name}" data-rate="${parseFloat(s.hourly_rate) || 0}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
       const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
       const isHoliday = (s.holiday_booked || []).some(p => date >= p.start && date <= p.end);
@@ -2826,7 +2826,14 @@ async function saveScheduleTable(showMessage) {
       const start = input.value;
       const end = row.querySelectorAll('.shift-end')[i].value;
       if (start && end && start !== '00:00' && end !== '00:00') {
-        toInsert.push({ owner_id: currentUser.id, name, date, start_time: start, end_time: end });
+        toInsert.push({
+          owner_id: currentUser.id,
+          staff_id: row.dataset.id || null,
+          name,
+          date,
+          start_time: start,
+          end_time: end
+        });
       }
     });
   });
@@ -2834,7 +2841,11 @@ async function saveScheduleTable(showMessage) {
   const endDate = toDateString(week.end);
   await db.from('schedules').delete().eq('owner_id', currentUser.id).gte('date', startDate).lte('date', endDate);
   if (toInsert.length) {
-    const { error } = await db.from('schedules').insert(toInsert);
+    let { error } = await db.from('schedules').insert(toInsert);
+    if (error && /staff_id/i.test(error.message || '')) {
+      const withoutId = toInsert.map(({ staff_id, ...rest }) => rest);
+      ({ error } = await db.from('schedules').insert(withoutId));
+    }
     if (error) return alert(error.message);
   }
   if (showMessage) {
