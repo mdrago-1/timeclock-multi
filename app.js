@@ -548,8 +548,9 @@ async function exitAdmin() {
     btn.disabled = true;
     btn.textContent = 'Signing out…';
   }
+  const accessToken = readStoredAccessToken();
   try {
-    const { error } = await db.auth.signOut();
+    const { error } = await db.auth.signOut({ scope: 'local' });
     if (error) throw error;
   } catch (err) {
     if (btn) {
@@ -562,6 +563,28 @@ async function exitAdmin() {
   currentUser = null;
   clearKeypadSession();
   showAuth();
+  if (accessToken) {
+    fetch(SUPABASE_URL + '/auth/v1/logout?scope=global', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      }
+    }).catch(() => {});
+  }
+}
+
+function readStoredAccessToken() {
+  try {
+    const raw = localStorage.getItem('sb-bpljlflxkntyhyoekpkd-auth-token');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.access_token || parsed.currentSession?.access_token || null;
+  } catch (err) {
+    return null;
+  }
 }
 
 function restoreKeypadSession(path) {
