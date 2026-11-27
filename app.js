@@ -951,10 +951,10 @@ function showMemberPortal(staff) {
     ${formSection}
     <h3 style="margin-top:2rem;">Notifications</h3>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0;">
-      <input type="checkbox" id="notify-holiday-result" onchange="saveMemberNotifications('${staff.id}')"> Holiday approvals and rejections
+      <input type="checkbox" id="notify-holiday-result" ${staff.notify_holiday_result ? 'checked' : ''} onchange="saveMemberNotifications('${staff.id}')"> Holiday approvals and rejections
     </label>
     <label style="display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0 0.75rem;">
-      <input type="checkbox" id="notify-shift-start" onchange="saveMemberNotifications('${staff.id}')"> Shift start reminders
+      <input type="checkbox" id="notify-shift-start" ${staff.notify_shift_start ? 'checked' : ''} onchange="saveMemberNotifications('${staff.id}')"> Shift start reminders
     </label>
     <h3 style="margin-top:2rem;">My Shifts</h3>
     <div id="member-shifts" style="margin-top:0.5rem;">Loading...</div>
@@ -967,7 +967,7 @@ function showMemberPortal(staff) {
   }
   document.getElementById('member-pin-form').onsubmit = (e) => updateMyPin(e, staff.id);
   loadMemberShifts(staff.name);
-  loadMemberHours(staff.id);
+  loadMemberHours();
 }
 
 async function loadMemberShifts() {
@@ -1015,32 +1015,27 @@ async function loadMemberShifts() {
   el.innerHTML = html;
 }
 
-async function loadMemberHours(staffId) {
-  const { data: clocks } = await db.from('clocks')
-    .select('*')
-    .eq('staff_id', staffId)
-    .order('timestamp', { ascending: false })
-    .limit(100);
+async function loadMemberHours() {
   const el = document.getElementById('member-hours');
   if (!el) return;
-  if (!clocks?.length) {
+  const { data, error } = await db.rpc('my_hours');
+  if (error || !data?.length) {
     el.innerHTML = '<p>No hours recorded yet.</p>';
     return;
   }
-  const byDate = {};
-  clocks.forEach(c => {
-    const date = new Date(c.timestamp).toISOString().slice(0,10);
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(c);
-  });
+  const now = new Date();
+  const dates = [...new Set(data.map(c => toDateString(new Date(c.timestamp))))].sort().reverse();
   let html = '<table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.4rem;">Date</th><th style="border:1px solid #e2e8f0; padding:0.4rem;">Hours</th></tr></thead><tbody>';
   let grand = 0;
-  Object.keys(byDate).sort().reverse().forEach(date => {
-    const hrs = calculateHours(byDate[date]);
-    grand += hrs;
-    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.4rem;">${new Date(date).toLocaleDateString('en-GB')}</td><td style="border:1px solid #e2e8f0; padding:0.4rem; text-align:center;">${hrs.toFixed(1)}</td></tr>`;
+  dates.forEach(date => {
+    const figures = dayFigures(data, date, now);
+    const shown = shownHours(figures.hours);
+    if (!(shown > 0) && !figures.notOut) return;
+    if (shown > 0) grand += shown;
+    const label = figures.notOut ? 'Not out' : formatHours(shown);
+    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.4rem;">${parseLocalDate(date).toLocaleDateString('en-GB')}</td><td style="border:1px solid #e2e8f0; padding:0.4rem; text-align:center;">${label}</td></tr>`;
   });
-  html += `<tr style="font-weight:600;"><td style="border:1px solid #e2e8f0; padding:0.4rem;">Total</td><td style="border:1px solid #e2e8f0; padding:0.4rem; text-align:center;">${grand.toFixed(1)}</td></tr></tbody></table>`;
+  html += `<tr style="font-weight:600;"><td style="border:1px solid #e2e8f0; padding:0.4rem;">Total</td><td style="border:1px solid #e2e8f0; padding:0.4rem; text-align:center;">${formatHours(grand)}</td></tr></tbody></table>`;
   el.innerHTML = html;
 }
 
@@ -2237,17 +2232,61 @@ function workedHours(entries, now) {
   return { hours, open, running };
 }
 
+function shiftsFromClocks(entries) {
+  const sorted = [...(entries || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const shifts = [];
+  let current = null;
+  sorted.forEach(entry => {
+    if (entry.type === 'in') {
+      current = { events: [entry], start: new Date(entry.timestamp) };
+      shifts.push(current);
+      return;
+    }
+    if (!current) return;
+    current.events.push(entry);
+    if (entry.type === 'out') current = null;
+  });
+  return shifts;
+}
+
+function dayFigures(entries, dateStr, now) {
+  const today = toDateString(now);
+  const shifts = shiftsFromClocks(entries).filter(shift => toDateString(shift.start) === dateStr);
+  let hours = 0;
+  let open = false;
+  let running = false;
+  shifts.forEach(shift => {
+    const closed = shift.events.some(entry => entry.type === 'out');
+    if (!closed && dateStr < today) {
+      open = true;
+      return;
+    }
+    hours += workedHours(shift.events, now).hours;
+    if (!closed) {
+      open = true;
+      running = true;
+    }
+  });
+  return { hours, open, running, notOut: open && dateStr < today };
+}
+
 function rateForDay(history, staffId, dateStr, fallback) {
   if (!history) return fallback > 0 ? fallback : 0;
   const rows = history
-    .filter(r => r.staff_id === staffId && String(r.effective_from).slice(0, 10) <= dateStr)
+    .filter(r => r.staff_id === staffId && parseFloat(r.hourly_rate) > 0)
     .sort((a, b) => String(a.effective_from).localeCompare(String(b.effective_from)));
-  if (!rows.length) return 0;
-  return parseFloat(rows.at(-1).hourly_rate) || 0;
+  if (!rows.length) return fallback > 0 ? fallback : 0;
+  const applicable = rows.filter(r => String(r.effective_from).slice(0, 10) <= dateStr);
+  const chosen = applicable.length ? applicable.at(-1) : rows[0];
+  return parseFloat(chosen.hourly_rate) || 0;
+}
+
+function shownHours(hours) {
+  return Math.round((hours || 0) * 10) / 10;
 }
 
 function formatHours(hours) {
-  return (Math.round(hours * 10) / 10).toFixed(1);
+  return shownHours(hours).toFixed(1);
 }
 
 function formatPay(amount) {
@@ -2266,20 +2305,9 @@ async function recordPayRate(staffId, newRate, previousRate, startDate) {
     return;
   }
   const rows = existing || [];
+  if (!(newRate > 0) && !rows.length) return;
   const start = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : '2000-01-01';
-  if (!rows.length && start < today && previousRate !== newRate) {
-    const { error: seedError } = await db.from('pay_rates').insert({
-      owner_id: currentUser.id,
-      staff_id: staffId,
-      hourly_rate: previousRate,
-      effective_from: start
-    });
-    if (seedError && !/duplicate|unique/i.test(seedError.message || '')) {
-      alert(seedError.message);
-      return;
-    }
-  }
-  const effective = rows.length || (start < today && previousRate !== newRate) ? today : start;
+  const effective = rows.length ? today : start;
   const { error: saveError } = await db.from('pay_rates').upsert({
     owner_id: currentUser.id,
     staff_id: staffId,
@@ -2404,22 +2432,22 @@ async function loadTimesheetSummary() {
   }
   const now = new Date();
   const today = toDateString(now);
+  const fetchStart = new Date(range.start.getTime() - 36 * 60 * 60 * 1000);
+  const fetchEnd = new Date(range.end.getTime() + 36 * 60 * 60 * 1000);
   const { data: clocks } = await db.from('clocks')
     .select('*, staff(name, email)')
     .eq('owner_id', currentUser.id)
-    .gte('timestamp', range.start.toISOString())
-    .lte('timestamp', range.end.toISOString())
+    .gte('timestamp', fetchStart.toISOString())
+    .lte('timestamp', fetchEnd.toISOString())
     .order('timestamp');
   const { data: staff } = await db.from('staff').select('id, name, email, hourly_rate').eq('owner_id', currentUser.id).order('name');
   const rateQuery = await db.from('pay_rates').select('staff_id, hourly_rate, effective_from').eq('owner_id', currentUser.id);
   const history = rateQuery.error ? null : (rateQuery.data || []);
   const byStaff = {};
-  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, email: s.email, rate: parseFloat(s.hourly_rate) || 0, days: {} });
+  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, email: s.email, rate: parseFloat(s.hourly_rate) || 0, clocks: [] });
   (clocks || []).forEach(c => {
     if (!byStaff[c.staff_id]) return;
-    const date = toDateString(new Date(c.timestamp));
-    if (!byStaff[c.staff_id].days[date]) byStaff[c.staff_id].days[date] = [];
-    byStaff[c.staff_id].days[date].push(c);
+    byStaff[c.staff_id].clocks.push(c);
   });
   if (!Object.keys(byStaff).length) {
     summary.innerHTML = '<p>No employees yet.</p>';
@@ -2438,9 +2466,11 @@ async function loadTimesheetSummary() {
   }
   html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Pay</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Actions</th></tr></thead><tbody>';
   const dayPay = {};
+  const dayHours = {};
   const daySoFar = {};
-  dates.forEach(date => { dayPay[date] = 0; daySoFar[date] = false; });
+  dates.forEach(date => { dayPay[date] = 0; dayHours[date] = 0; daySoFar[date] = false; });
   let weekPay = 0;
+  let weekHours = 0;
   let weekSoFar = false;
   Object.entries(byStaff).forEach(([id, s]) => {
     html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${esc(s.name)}</td>`;
@@ -2448,19 +2478,18 @@ async function loadTimesheetSummary() {
     let rowPay = 0;
     let rowSoFar = false;
     dates.forEach(date => {
-      const entries = s.days[date] || [];
-      const figures = workedHours(entries, now);
-      const notOut = figures.open && date < today;
-      const soFar = figures.open && date === today;
+      const figures = dayFigures(s.clocks, date, now);
+      const shown = shownHours(figures.hours);
+      const notOut = figures.notOut;
+      const soFar = figures.running && date === today;
       const rate = rateForDay(history, id, date, s.rate);
-      let hours = 0;
-      let pay = 0;
-      if (!notOut && (soFar || figures.hours > 0)) {
-        hours = figures.hours;
-        pay = rate > 0 ? hours * rate : 0;
-        rowHours += hours;
+      const pay = shown > 0 && rate > 0 ? shown * rate : 0;
+      if (shown > 0) {
+        rowHours += shown;
         rowPay += pay;
+        dayHours[date] += shown;
         dayPay[date] += pay;
+        weekHours += shown;
         weekPay += pay;
         if (soFar) {
           rowSoFar = true;
@@ -2471,9 +2500,9 @@ async function loadTimesheetSummary() {
       const colour = notOut ? 'background:#fef2f2; color:#b91c1c; font-weight:650;' : (soFar ? 'font-style:italic;' : '');
       let label = '';
       if (notOut) label = 'Not out';
-      else if (soFar || hours > 0) {
-        const payLine = rate > 0 ? `<div style="font-size:0.75rem; color:#64748b;">£${formatPay(pay)}${soFar ? ' so far' : ''}</div>` : '';
-        label = `${formatHours(hours)}${soFar ? ' so far' : ''}${payLine}`;
+      else if (shown > 0 || soFar) {
+        const payLine = pay > 0 ? `<div style="font-size:0.75rem; color:#64748b;">£${formatPay(pay)}${soFar ? ' so far' : ''}</div>` : '';
+        label = `${formatHours(shown)}${soFar ? ' so far' : ''}${payLine}`;
       }
       html += `<td class="day-cell" data-staff="${id}" data-date="${date}" data-name="${esc(s.name)}" title="${notOut || figures.open ? 'Not clocked out. Click to add the missing time.' : 'Click to correct times'}" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; cursor:pointer; ${colour}">${label}</td>`;
     });
@@ -2482,12 +2511,14 @@ async function loadTimesheetSummary() {
     html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${rowStyle}">${rowPay > 0 ? '£' + formatPay(rowPay) : ''}${rowSoFar && rowPay > 0 ? ' so far' : ''}</td>`;
     html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${id}','${esc(s.name)}','${esc(s.email || '')}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
   });
-  html += `<tr style="background:#f8fafc; font-weight:700;"><td style="border:1px solid #e2e8f0; padding:0.5rem;">Pay</td>`;
+  html += `<tr style="background:#f8fafc; font-weight:700;"><td style="border:1px solid #e2e8f0; padding:0.5rem;">Total</td>`;
   dates.forEach(date => {
     const style = daySoFar[date] ? 'font-style:italic;' : '';
-    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${style}">${dayPay[date] > 0 ? '£' + formatPay(dayPay[date]) : ''}${daySoFar[date] && dayPay[date] > 0 ? ' so far' : ''}</td>`;
+    const hoursLine = dayHours[date] > 0 ? formatHours(dayHours[date]) : '';
+    const payLine = dayPay[date] > 0 ? `<div style="font-size:0.75rem;">£${formatPay(dayPay[date])}${daySoFar[date] ? ' so far' : ''}</div>` : '';
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${style}">${hoursLine}${payLine}</td>`;
   });
-  html += `<td style="border:1px solid #e2e8f0; padding:0.5rem;"></td>`;
+  html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${weekSoFar ? 'font-style:italic;' : ''}">${weekHours > 0 ? formatHours(weekHours) : ''}${weekSoFar ? ' so far' : ''}</td>`;
   html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${weekSoFar ? 'font-style:italic;' : ''}">${weekPay > 0 ? '£' + formatPay(weekPay) : ''}${weekSoFar && weekPay > 0 ? ' so far' : ''}</td>`;
   html += '<td style="border:1px solid #e2e8f0; padding:0.5rem;"></td></tr></tbody></table>';
   summary.innerHTML = html;
@@ -2718,26 +2749,26 @@ async function exportHours() {
   const range = getDateRange();
   if (!range) return alert('Please select a valid date range');
   if (!(await ownerSession())) return;
+  const fetchStart = new Date(range.start.getTime() - 36 * 60 * 60 * 1000);
+  const fetchEnd = new Date(range.end.getTime() + 36 * 60 * 60 * 1000);
   const { data: clocks } = await db.from('clocks')
     .select('*, staff(name)')
     .eq('owner_id', currentUser.id)
-    .gte('timestamp', range.start.toISOString())
-    .lte('timestamp', range.end.toISOString())
+    .gte('timestamp', fetchStart.toISOString())
+    .lte('timestamp', fetchEnd.toISOString())
     .order('timestamp');
-  if (!clocks?.length) return alert('No data in range');
-  const rows = [['Name','Type','Date','Time','Daily Hours']];
-  const byStaffDate = {};
-  clocks.forEach(c => {
-    const date = new Date(c.timestamp).toISOString().slice(0,10);
-    const key = `${c.staff?.name}|${date}`;
-    if (!byStaffDate[key]) byStaffDate[key] = [];
-    byStaffDate[key].push(c);
+  const visible = (clocks || []).filter(c => {
+    const date = toDateString(new Date(c.timestamp));
+    return date >= toDateString(range.start) && date <= toDateString(range.end);
   });
-  clocks.forEach(c => {
+  if (!visible.length) return alert('No data in range');
+  const rows = [['Name','Type','Date','Time','Daily Hours']];
+  const now = new Date();
+  visible.forEach(c => {
     const d = new Date(c.timestamp);
-    const dateStr = d.toISOString().slice(0,10);
-    const key = `${c.staff?.name}|${dateStr}`;
-    const dailyHrs = calculateHours(byStaffDate[key] || []).toFixed(1);
+    const dateStr = toDateString(d);
+    const samePerson = clocks.filter(other => other.staff_id === c.staff_id);
+    const dailyHrs = formatHours(shownHours(dayFigures(samePerson, dateStr, now).hours));
     rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), formatHHMM(d), dailyHrs]);
   });
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
@@ -2774,6 +2805,8 @@ async function loadSchedule() {
     dayDates.push(toDateString(d));
   }
   const { data: staff } = await db.from('staff').select('id, name, email, hourly_rate, holiday_booked').eq('owner_id', currentUser.id).eq('archived', false).order('name');
+  const rateQuery = await db.from('pay_rates').select('staff_id, hourly_rate, effective_from').eq('owner_id', currentUser.id);
+  window._payRateHistory = rateQuery.error ? null : (rateQuery.data || []);
   const startDate = toDateString(week.start);
   const endDate = toDateString(week.end);
   const { data: schedules } = await db.from('schedules')
@@ -2830,8 +2863,10 @@ async function loadSchedule() {
           const start = shift.start_time || '';
           const end = shift.end_time || '';
           const shiftHours = hoursBetween(start, end);
-          totalHours += shiftHours;
-          dayWages[date] += shiftHours * (parseFloat(s.hourly_rate) || 0);
+          const shown = shownHours(shiftHours);
+          const dayRate = rateForDay(window._payRateHistory, s.id, date, parseFloat(s.hourly_rate) || 0);
+          totalHours += shown;
+          dayWages[date] += shown * dayRate;
           table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
             <div style="font-size:0.65rem; color:#94a3b8;">Shift</div>
             <input type="time" lang="en-GB" class="shift-start shift-time" data-date="${date}" value="${start}">
@@ -2846,7 +2881,13 @@ async function loadSchedule() {
       table += `</td>`;
     });
     const rate = parseFloat(s.hourly_rate) || 0;
-    const wage = totalHours * rate;
+    let wage = 0;
+    dayDates.forEach(date => {
+      const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
+      dayShifts.forEach(shift => {
+        wage += shownHours(hoursBetween(shift.start_time, shift.end_time)) * rateForDay(window._payRateHistory, s.id, date, rate);
+      });
+    });
     grandTotalWage += wage;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
@@ -2911,16 +2952,19 @@ function updateScheduleTotals() {
   const dayTotals = {};
   rows.forEach(row => {
     let hours = 0;
+    let wage = 0;
     const starts = row.querySelectorAll('.shift-start');
     const ends = row.querySelectorAll('.shift-end');
-    const rate = parseFloat(row.dataset.rate) || 0;
+    const fallback = parseFloat(row.dataset.rate) || 0;
+    const staffId = row.dataset.id;
     starts.forEach((inp, i) => {
-      const shiftHours = hoursBetween(inp.value, ends[i]?.value);
+      const shiftHours = shownHours(hoursBetween(inp.value, ends[i]?.value));
       hours += shiftHours;
       const date = inp.dataset.date;
+      const rate = rateForDay(window._payRateHistory, staffId, date, fallback);
       if (date) dayTotals[date] = (dayTotals[date] || 0) + (shiftHours * rate);
+      wage += shiftHours * rate;
     });
-    const wage = hours * rate;
     grand += wage;
     const cells = row.querySelectorAll('td');
     if (cells.length >= 2) {
