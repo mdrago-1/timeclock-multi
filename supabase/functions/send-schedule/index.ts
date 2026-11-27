@@ -107,17 +107,40 @@ function shiftHtml(name, startDate, endDate, shifts) {
   </div>`;
 }
 
+function londonDate(value) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+}
+
 function timesheetHtml(startIso, endIso, clocks) {
+  const sorted = [...(clocks || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const shifts = [];
+  let current = null;
+  sorted.forEach((entry) => {
+    if (entry.type === "in") {
+      current = { events: [entry], start: new Date(entry.timestamp) };
+      shifts.push(current);
+      return;
+    }
+    if (!current) return;
+    current.events.push(entry);
+    if (entry.type === "out") current = null;
+  });
   const byDate = {};
-  (clocks || []).forEach((c) => {
-    const date = new Date(c.timestamp).toISOString().slice(0, 10);
+  shifts.forEach((shift) => {
+    if (!shift.events.some((entry) => entry.type === "out")) return;
+    const date = londonDate(shift.start);
     if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(c);
+    byDate[date].push(...shift.events);
   });
   let total = 0;
   let rows = "";
   Object.keys(byDate).sort().forEach((date) => {
-    const hrs = calculateHours(byDate[date]);
+    const hrs = Math.round(calculateHours(byDate[date]) * 10) / 10;
     total += hrs;
     const label = new Date(date + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
     rows += `<tr>
