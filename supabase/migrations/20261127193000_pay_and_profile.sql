@@ -1,4 +1,4 @@
--- Pay rates can only be saved for this owner's own staff.
+begin;
 -- The employee profile no longer returns bank details or National Insurance.
 -- Employees can read their own clock times, and nothing else.
 
@@ -132,7 +132,7 @@ revoke all on function public.my_shifts() from anon;
 grant execute on function public.my_shifts() to authenticated;
 
 create or replace function public.my_hours()
-returns table(timestamp timestamptz, type text)
+returns table("timestamp" timestamptz, type text)
 language sql
 security definer
 set search_path = public
@@ -152,3 +152,5 @@ $$;
 revoke all on function public.my_hours() from public;
 revoke all on function public.my_hours() from anon;
 grant execute on function public.my_hours() to authenticated;
+
+commit;
