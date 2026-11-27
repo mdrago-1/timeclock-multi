@@ -2582,15 +2582,17 @@ async function loadTimesheetSummary() {
     summary.innerHTML = '<p>No employees yet.</p>';
     return;
   }
+  const th = 'border:1px solid #cbd5e1; padding:0.5rem; background:#4b5563; color:#ffffff; text-align:center; font-weight:650;';
   let html = `<h4>Daily Hours Summary</h4>
     <p style="color:#64748b; margin-top:0;">Click a day to correct a missed clock-in, break or clock-out. Pay is gross pay for hourly staff only. Salaried staff are shown as hours, not an hourly amount. It excludes employer National Insurance, pension and holiday pay.</p>
-    <table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>`;
+    <table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="${th}">Team Member</th>`;
   model.dates.forEach(date => {
-    html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${date.label}</th>`;
+    html += `<th style="${th}">${date.label}</th>`;
   });
-  html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Pay</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Actions</th></tr></thead><tbody>';
-  model.people.forEach(person => {
-    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${esc(person.name)}</td>`;
+  html += `<th style="${th}">Total</th><th style="${th}">Pay</th><th style="${th}">Actions</th></tr></thead><tbody>`;
+  model.people.forEach((person, index) => {
+    const zebra = index % 2 === 0 ? 'background:#f3f4f6;' : '';
+    html += `<tr style="${zebra}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600; text-align:left;">${esc(person.name)}</td>`;
     model.dates.forEach(date => {
       const cell = person.days[date.key];
       const colour = cell.notOut ? 'background:#fef2f2; color:#b91c1c; font-weight:650;' : (cell.soFar ? 'font-style:italic;' : '');
@@ -2603,7 +2605,7 @@ async function loadTimesheetSummary() {
     html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${rowStyle}">${esc(person.totalPay)}</td>`;
     html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${person.id}','${esc(person.name)}','${esc(person.email)}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
   });
-  html += `<tr style="background:#f8fafc; font-weight:700;"><td style="border:1px solid #e2e8f0; padding:0.5rem;">Total</td>`;
+  html += `<tr style="${model.people.length % 2 === 0 ? 'background:#f3f4f6;' : ''} font-weight:700;"><td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:left;">Total</td>`;
   model.dates.forEach(date => {
     const cell = model.totals.days[date.key];
     const style = cell.soFar ? 'font-style:italic;' : '';
@@ -2651,6 +2653,21 @@ async function exportTimesheetCsv() {
 }
 window.exportTimesheetCsv = exportTimesheetCsv;
 
+function pdfTextWidth(value, size) {
+  let units = 0;
+  for (const ch of String(value || '')) {
+    if (ch >= '0' && ch <= '9') units += 556;
+    else if (ch === ' ' || ch === '.' || ch === ',') units += 278;
+    else if (ch === '£') units += 556;
+    else units += 500;
+  }
+  return units / 1000 * size;
+}
+
+function pdfCentered(x, width, value, size) {
+  return x + Math.max(2, (width - pdfTextWidth(value, size)) / 2);
+}
+
 function pdfEscape(value) {
   return String(value ?? '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/£/g, '\\243');
 }
@@ -2671,7 +2688,7 @@ function buildTimesheetPdf(model) {
     for (let i = 0; i < model.people.length; i += perPage) chunks.push(model.people.slice(i, i + perPage));
     if (!chunks.length) chunks.push([]);
     chunks.forEach((people, chunkIndex) => {
-      sheets.push({ dates, people, lastDays, showTotals: chunkIndex === chunks.length - 1 });
+      sheets.push({ dates, people, lastDays, showTotals: chunkIndex === chunks.length - 1, rowStart: chunkIndex * perPage });
     });
   });
   const streams = sheets.map(sheet => {
@@ -2691,33 +2708,50 @@ function buildTimesheetPdf(model) {
     const otherW = (pageW - margin * 2 - nameW) / Math.max(1, headers.length - 1);
     let y = pageH - margin;
     let out = '0.5 w\n';
-    const text = (x, yy, size, line) => `BT /F1 ${size} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${pdfEscape(line)}) Tj ET\n`;
-    out += text(margin, y - 12, 14, 'Time Rogue timesheet');
+    const textAt = (x, yy, size, line) => `BT /F1 ${size} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${pdfEscape(line)}) Tj ET\n`;
+    out += textAt(margin, y - 12, 14, 'Time Rogue timesheet');
     y -= 22;
-    out += text(margin, y - 10, 9, model.rangeLabel);
+    out += textAt(margin, y - 10, 9, model.rangeLabel);
     y -= 16;
-    out += text(margin, y - 8, 7, 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
+    out += textAt(margin, y - 8, 7, 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
     y -= 18;
-    const drawRow = (cells, bold) => {
+    const drawRow = (cells, options) => {
       let x = margin;
+      if (options.header) out += '0.32 g\n';
+      else if (options.shade) out += '0.945 g\n';
+      cells.forEach((cell, index) => {
+        const w = index === 0 ? nameW : otherW;
+        const bottom = y - rowH;
+        if (options.header || options.shade) out += `${x.toFixed(1)} ${bottom.toFixed(1)} ${w.toFixed(1)} ${rowH.toFixed(1)} re f\n`;
+        x += w;
+      });
+      out += '0 g\n0 0 0 RG\n';
+      if (options.header) out += '1 1 1 rg\n';
+      x = margin;
       cells.forEach((cell, index) => {
         const w = index === 0 ? nameW : otherW;
         const bottom = y - rowH;
         out += `${x.toFixed(1)} ${bottom.toFixed(1)} ${w.toFixed(1)} ${rowH.toFixed(1)} re S\n`;
         if (cell.split) {
           const mid = y - rowH / 2;
+          const topText = String(cell.split.top || '').slice(0, 22);
+          const bottomText = String(cell.split.bottom || '').slice(0, 22);
           out += `${x.toFixed(1)} ${mid.toFixed(1)} m ${(x + w).toFixed(1)} ${mid.toFixed(1)} l S\n`;
-          out += text(x + 3, mid + 4, 8, String(cell.split.top || '').slice(0, 22));
-          out += text(x + 3, bottom + 4, 7, String(cell.split.bottom || '').slice(0, 22));
+          out += textAt(pdfCentered(x, w, topText, 8), mid + 4, 8, topText);
+          out += textAt(pdfCentered(x, w, bottomText, 7), bottom + 4, 7, bottomText);
         } else {
-          out += text(x + 3, bottom + 12, bold || cell.bold ? 8 : 7, String(cell.text || '').slice(0, 28));
+          const size = options.header ? 8 : 7;
+          const value = String(cell.text || '').slice(0, 28);
+          const left = index === 0 && !options.header ? x + 4 : pdfCentered(x, w, value, size);
+          out += textAt(left, bottom + 13, size, value);
         }
         x += w;
       });
+      if (options.header) out += '0 0 0 rg\n';
       y -= rowH;
     };
-    drawRow(headers, true);
-    body.forEach(row => drawRow(row, false));
+    drawRow(headers, { header: true });
+    body.forEach((row, index) => drawRow(row, { shade: (sheet.rowStart + index) % 2 === 0 }));
     if (!out.endsWith('\n')) out += '\n';
     return out;
   });
