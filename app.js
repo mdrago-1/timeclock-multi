@@ -211,7 +211,12 @@ function setupEventListeners() {
   });
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
-  document.getElementById('exit-admin')?.addEventListener('click', showChooser);
+  document.getElementById('exit-admin')?.addEventListener('click', async () => {
+    currentUser = null;
+    window._keypadOwnerId = null;
+    try { await db.auth.signOut(); } catch (err) { /* still leave the dashboard */ }
+    showChooser();
+  });
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
   document.getElementById('member-btn')?.addEventListener('click', showMemberLogin);
   document.getElementById('home-member-btn')?.addEventListener('click', showMemberLogin);
@@ -2864,12 +2869,30 @@ async function uploadSchedule() {
   if (!file) return alert('Choose a CSV file');
   const text = await file.text();
   const lines = text.trim().split('\n').slice(1);
+  const { data: staff } = await db.from('staff').select('id, name').eq('owner_id', currentUser.id);
+  const staffIdByName = {};
+  (staff || []).forEach(s => {
+    if (!s.name) return;
+    if (Object.prototype.hasOwnProperty.call(staffIdByName, s.name)) staffIdByName[s.name] = null;
+    else staffIdByName[s.name] = s.id;
+  });
   const rows = lines.map(line => {
     const [name, date, start_time, end_time] = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
-    return { owner_id: currentUser.id, name, date, start_time, end_time };
+    return {
+      owner_id: currentUser.id,
+      staff_id: staffIdByName[name] || null,
+      name,
+      date,
+      start_time,
+      end_time
+    };
   }).filter(r => r.name && r.date);
   if (!rows.length) return alert('No valid rows found');
-  const { error } = await db.from('schedules').insert(rows);
+  let { error } = await db.from('schedules').insert(rows);
+  if (error && /staff_id/i.test(error.message || '')) {
+    const withoutId = rows.map(({ staff_id, ...rest }) => rest);
+    ({ error } = await db.from('schedules').insert(withoutId));
+  }
   if (error) return alert(error.message);
   alert('Schedule uploaded');
   loadSchedule();
