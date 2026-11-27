@@ -4,6 +4,7 @@ let currentStaff = null;
 let currentUser = null;
 let selectedRange = 'this-week';
 let timesheetTimer = null;
+let timesheetGrid = null;
 let currentWeekOffset = 0;
 let ADMIN_PASSWORD = localStorage.getItem('admin_password') || 'Admin0506';
 const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -2429,7 +2430,8 @@ async function loadTimesheets() {
         <label>Start date<br><input type="date" id="date-from" onchange="updateRangeDisplay()"></label>
         <label style="margin-left:1rem;">End date<br><input type="date" id="date-to" onchange="updateRangeDisplay()"></label>
       </div>
-      <button onclick="exportHours()" style="margin-top:0.5rem;">Download CSV</button>
+      <button type="button" onclick="exportTimesheetCsv()" style="margin-top:0.5rem;">Export CSV</button>
+      <button type="button" onclick="exportTimesheetPdf()" style="margin-top:0.5rem;">Export PDF</button>
     </div>
     <div id="timesheet-summary" style="margin-top:1.5rem;"></div>
   `;
@@ -2448,15 +2450,9 @@ async function loadTimesheets() {
   }, 60000);
 }
 
-async function loadTimesheetSummary() {
+async function buildTimesheetModel() {
   const range = getDateRange();
-  const summary = document.getElementById('timesheet-summary');
-  if (!summary) return;
-  if (!range) return;
-  if (!(await ownerSession())) {
-    summary.innerHTML = '';
-    return;
-  }
+  if (!range || !(await ownerSession())) return null;
   const now = new Date();
   const today = toDateString(now);
   const fetchStart = new Date(range.start.getTime() - 36 * 60 * 60 * 1000);
@@ -2476,93 +2472,281 @@ async function loadTimesheetSummary() {
     if (!byStaff[c.staff_id]) return;
     byStaff[c.staff_id].clocks.push(c);
   });
-  if (!Object.keys(byStaff).length) {
-    summary.innerHTML = '<p>No employees yet.</p>';
-    return;
-  }
   const dates = [];
-  const start = new Date(range.start);
-  const end = new Date(range.end);
-  let html = `<h4>Daily Hours Summary</h4>
-    <p style="color:#64748b; margin-top:0;">Click a day to correct a missed clock-in, break or clock-out. Pay is gross pay for hourly staff only. Salaried staff are shown as hours, not an hourly amount. It excludes employer National Insurance, pension and holiday pay.</p>
-    <table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>`;
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    dates.push(toDateString(d));
-    const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-    html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${dayLabel}</th>`;
+  for (let d = new Date(range.start); d <= range.end; d.setDate(d.getDate() + 1)) {
+    dates.push({
+      key: toDateString(d),
+      label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    });
   }
-  html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Pay</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Actions</th></tr></thead><tbody>';
-  const dayPay = {};
   const dayHours = {};
+  const dayPay = {};
   const daySoFar = {};
-  dates.forEach(date => { dayPay[date] = 0; dayHours[date] = 0; daySoFar[date] = false; });
-  let weekPay = 0;
+  dates.forEach(date => { dayHours[date.key] = 0; dayPay[date.key] = 0; daySoFar[date.key] = false; });
   let weekHours = 0;
+  let weekPay = 0;
   let weekSoFar = false;
-  Object.entries(byStaff).forEach(([id, s]) => {
-    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${esc(s.name)}</td>`;
+  const people = Object.entries(byStaff).map(([id, s]) => {
     let rowHours = 0;
     let rowPay = 0;
     let rowSoFar = false;
+    const days = {};
     dates.forEach(date => {
-      const figures = dayFigures(s.clocks, date, now);
+      const figures = dayFigures(s.clocks, date.key, now);
       const shown = shownHours(figures.hours);
       const notOut = figures.notOut;
-      const soFar = figures.running && date === today;
-      const rate = rateForDay(history, id, date, s.rate);
+      const soFar = figures.running && date.key === today;
       const hourlyPay = isHourlyWorker(s.workerType);
+      const rate = rateForDay(history, id, date.key, s.rate);
       const pay = hourlyPay && shown > 0 && rate > 0 ? shown * rate : 0;
       if (shown > 0) {
         rowHours += shown;
         rowPay += pay;
-        dayHours[date] += shown;
-        dayPay[date] += pay;
+        dayHours[date.key] += shown;
+        dayPay[date.key] += pay;
         weekHours += shown;
         weekPay += pay;
         if (soFar) {
           rowSoFar = true;
-          daySoFar[date] = true;
+          daySoFar[date.key] = true;
           weekSoFar = true;
         }
       }
-      const colour = notOut ? 'background:#fef2f2; color:#b91c1c; font-weight:650;' : (soFar ? 'font-style:italic;' : '');
-      let label = '';
-      if (notOut) label = 'Not out';
-      else if (shown > 0 || soFar) {
-        let payLine = '';
-        if (!hourlyPay) {
-          const payLabel = s.workerType === 'salaried' ? 'Salaried' : (s.workerType ? esc(s.workerType) : 'Not set');
-          payLine = `<div style="font-size:0.75rem; color:#64748b;">${payLabel}</div>`;
-        } else if (pay > 0) {
-          payLine = `<div style="font-size:0.75rem; color:#64748b;">£${formatPay(pay)}${soFar ? ' so far' : ''}</div>`;
-        }
-        label = `${formatHours(shown)}${soFar ? ' so far' : ''}${payLine}`;
+      let hoursLabel = '';
+      let payLabel = '';
+      if (!notOut && (shown > 0 || soFar)) {
+        hoursLabel = formatHours(shown) + (soFar ? ' so far' : '');
+        if (!hourlyPay) payLabel = s.workerType === 'salaried' ? 'Salaried' : (s.workerType || 'Not set');
+        else if (pay > 0) payLabel = '£' + formatPay(pay) + (soFar ? ' so far' : '');
       }
-      html += `<td class="day-cell" data-staff="${id}" data-date="${date}" data-name="${esc(s.name)}" title="${notOut || figures.open ? 'Not clocked out. Click to add the missing time.' : 'Click to correct times'}" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; cursor:pointer; ${colour}">${label}</td>`;
+      days[date.key] = { notOut, soFar, open: figures.open, hoursLabel, payLabel };
     });
-    const rowStyle = rowSoFar ? 'font-style:italic;' : '';
-    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600; ${rowStyle}">${rowHours > 0 ? formatHours(rowHours) : ''}${rowSoFar ? ' so far' : ''}</td>`;
-    const rowPayLabel = !isHourlyWorker(s.workerType)
-      ? (s.workerType === 'salaried' ? 'Salaried' : (s.workerType ? esc(s.workerType) : 'Not set'))
+    const totalPayLabel = !isHourlyWorker(s.workerType)
+      ? (s.workerType === 'salaried' ? 'Salaried' : (s.workerType || 'Not set'))
       : (rowPay > 0 ? '£' + formatPay(rowPay) + (rowSoFar ? ' so far' : '') : '');
-    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${rowStyle}">${rowPayLabel}</td>`;
-    html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${id}','${esc(s.name)}','${esc(s.email || '')}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
+    return {
+      id,
+      name: s.name,
+      email: s.email || '',
+      days,
+      totalHours: rowHours > 0 ? formatHours(rowHours) + (rowSoFar ? ' so far' : '') : '',
+      totalPay: totalPayLabel,
+      soFar: rowSoFar
+    };
+  });
+  return {
+    rangeLabel: `${formatDate(range.start)} – ${formatDate(range.end)}`,
+    dates,
+    people,
+    totals: {
+      days: Object.fromEntries(dates.map(date => [date.key, {
+        hours: dayHours[date.key] > 0 ? formatHours(dayHours[date.key]) : '',
+        pay: dayPay[date.key] > 0 ? '£' + formatPay(dayPay[date.key]) + (daySoFar[date.key] ? ' so far' : '') : '',
+        soFar: daySoFar[date.key]
+      }])),
+      hours: weekHours > 0 ? formatHours(weekHours) + (weekSoFar ? ' so far' : '') : '',
+      pay: weekPay > 0 ? '£' + formatPay(weekPay) + (weekSoFar ? ' so far' : '') : '',
+      soFar: weekSoFar
+    }
+  };
+}
+
+function timesheetCellPlain(cell) {
+  if (!cell) return '';
+  if (cell.notOut) return 'Not out';
+  return [cell.hoursLabel, cell.payLabel].filter(Boolean).join(' ');
+}
+
+async function loadTimesheetSummary() {
+  const summary = document.getElementById('timesheet-summary');
+  if (!summary) return;
+  const range = getDateRange();
+  if (!range) return;
+  const model = await buildTimesheetModel();
+  timesheetGrid = model;
+  if (!model) {
+    summary.innerHTML = '';
+    return;
+  }
+  if (!model.people.length) {
+    summary.innerHTML = '<p>No employees yet.</p>';
+    return;
+  }
+  let html = `<h4>Daily Hours Summary</h4>
+    <p style="color:#64748b; margin-top:0;">Click a day to correct a missed clock-in, break or clock-out. Pay is gross pay for hourly staff only. Salaried staff are shown as hours, not an hourly amount. It excludes employer National Insurance, pension and holiday pay.</p>
+    <table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>`;
+  model.dates.forEach(date => {
+    html += `<th style="border:1px solid #e2e8f0; padding:0.5rem;">${date.label}</th>`;
+  });
+  html += '<th style="border:1px solid #e2e8f0; padding:0.5rem;">Total</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Pay</th><th style="border:1px solid #e2e8f0; padding:0.5rem;">Actions</th></tr></thead><tbody>';
+  model.people.forEach(person => {
+    html += `<tr><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${esc(person.name)}</td>`;
+    model.dates.forEach(date => {
+      const cell = person.days[date.key];
+      const colour = cell.notOut ? 'background:#fef2f2; color:#b91c1c; font-weight:650;' : (cell.soFar ? 'font-style:italic;' : '');
+      const hours = cell.notOut ? 'Not out' : (cell.hoursLabel || '');
+      const payLine = !cell.notOut && cell.payLabel ? `<div style="font-size:0.75rem; color:#64748b;">${esc(cell.payLabel)}</div>` : '';
+      html += `<td class="day-cell" data-staff="${person.id}" data-date="${date.key}" data-name="${esc(person.name)}" title="${cell.notOut || cell.open ? 'Not clocked out. Click to add the missing time.' : 'Click to correct times'}" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; cursor:pointer; ${colour}">${hours}${payLine}</td>`;
+    });
+    const rowStyle = person.soFar ? 'font-style:italic;' : '';
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600; ${rowStyle}">${esc(person.totalHours)}</td>`;
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${rowStyle}">${esc(person.totalPay)}</td>`;
+    html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${person.id}','${esc(person.name)}','${esc(person.email)}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
   });
   html += `<tr style="background:#f8fafc; font-weight:700;"><td style="border:1px solid #e2e8f0; padding:0.5rem;">Total</td>`;
-  dates.forEach(date => {
-    const style = daySoFar[date] ? 'font-style:italic;' : '';
-    const hoursLine = dayHours[date] > 0 ? formatHours(dayHours[date]) : '';
-    const payLine = dayPay[date] > 0 ? `<div style="font-size:0.75rem;">£${formatPay(dayPay[date])}${daySoFar[date] ? ' so far' : ''}</div>` : '';
-    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${style}">${hoursLine}${payLine}</td>`;
+  model.dates.forEach(date => {
+    const cell = model.totals.days[date.key];
+    const style = cell.soFar ? 'font-style:italic;' : '';
+    const payLine = cell.pay ? `<div style="font-size:0.75rem;">${esc(cell.pay)}</div>` : '';
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${style}">${esc(cell.hours)}${payLine}</td>`;
   });
-  html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${weekSoFar ? 'font-style:italic;' : ''}">${weekHours > 0 ? formatHours(weekHours) : ''}${weekSoFar ? ' so far' : ''}</td>`;
-  html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${weekSoFar ? 'font-style:italic;' : ''}">${weekPay > 0 ? '£' + formatPay(weekPay) : ''}${weekSoFar && weekPay > 0 ? ' so far' : ''}</td>`;
+  html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${model.totals.soFar ? 'font-style:italic;' : ''}">${esc(model.totals.hours)}</td>`;
+  html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${model.totals.soFar ? 'font-style:italic;' : ''}">${esc(model.totals.pay)}</td>`;
   html += '<td style="border:1px solid #e2e8f0; padding:0.5rem;"></td></tr></tbody></table>';
   summary.innerHTML = html;
   summary.querySelectorAll('.day-cell').forEach(cell => {
     cell.onclick = () => openDayEditor(cell.dataset.staff, cell.dataset.date, cell.dataset.name);
   });
 }
+
+function csvField(value) {
+  return '"' + String(value ?? '').replace(/"/g, '""') + '"';
+}
+
+function timesheetFileName(ext) {
+  const label = (timesheetGrid?.rangeLabel || 'timesheet').replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
+  return `timesheet-${label || 'export'}.${ext}`;
+}
+
+async function exportTimesheetCsv() {
+  const model = timesheetGrid || await buildTimesheetModel();
+  if (!model) return alert('Open Timesheets while signed in as the business first.');
+  if (!model.people.length) return alert('No employees to export.');
+  const header = ['Employee', ...model.dates.map(date => date.label), 'Total hours', 'Pay'];
+  const lines = [header.map(csvField).join(',')];
+  model.people.forEach(person => {
+    const row = [person.name, ...model.dates.map(date => timesheetCellPlain(person.days[date.key])), person.totalHours, person.totalPay];
+    lines.push(row.map(csvField).join(','));
+  });
+  const total = ['Total', ...model.dates.map(date => {
+    const cell = model.totals.days[date.key];
+    return [cell.hours, cell.pay].filter(Boolean).join(' ');
+  }), model.totals.hours, model.totals.pay];
+  lines.push(total.map(csvField).join(','));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = timesheetFileName('csv');
+  a.click();
+}
+window.exportTimesheetCsv = exportTimesheetCsv;
+
+function pdfEscape(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/£/g, '\\243');
+}
+
+function buildTimesheetPdf(model) {
+  const dayGroups = [];
+  for (let i = 0; i < model.dates.length; i += 7) dayGroups.push(model.dates.slice(i, i + 7));
+  if (!dayGroups.length) dayGroups.push([]);
+  const pageW = 842;
+  const pageH = 595;
+  const margin = 28;
+  const rowH = 28;
+  const sheets = [];
+  dayGroups.forEach((dates, groupIndex) => {
+    const lastDays = groupIndex === dayGroups.length - 1;
+    const perPage = 14;
+    const chunks = [];
+    for (let i = 0; i < model.people.length; i += perPage) chunks.push(model.people.slice(i, i + perPage));
+    if (!chunks.length) chunks.push([]);
+    chunks.forEach((people, chunkIndex) => {
+      sheets.push({ dates, people, lastDays, showTotals: chunkIndex === chunks.length - 1 });
+    });
+  });
+  const streams = sheets.map(sheet => {
+    const headers = ['Employee', ...sheet.dates.map(date => date.label)];
+    if (sheet.lastDays) headers.push('Total hours', 'Pay');
+    const body = sheet.people.map(person => {
+      const row = [person.name, ...sheet.dates.map(date => timesheetCellPlain(person.days[date.key]))];
+      if (sheet.lastDays) row.push(person.totalHours, person.totalPay);
+      return row;
+    });
+    if (sheet.showTotals) {
+      const total = ['Total', ...sheet.dates.map(date => {
+        const cell = model.totals.days[date.key];
+        return [cell.hours, cell.pay].filter(Boolean).join(' ');
+      })];
+      if (sheet.lastDays) total.push(model.totals.hours, model.totals.pay);
+      body.push(total);
+    }
+    const nameW = 130;
+    const otherW = (pageW - margin * 2 - nameW) / Math.max(1, headers.length - 1);
+    let y = pageH - margin;
+    let out = '0.5 w\n';
+    const text = (x, yy, size, line) => `BT /F1 ${size} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${pdfEscape(line)}) Tj ET\n`;
+    out += text(margin, y - 12, 14, 'Time Rogue timesheet');
+    y -= 22;
+    out += text(margin, y - 10, 9, model.rangeLabel);
+    y -= 16;
+    out += text(margin, y - 8, 7, 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
+    y -= 18;
+    const drawRow = (cells, bold) => {
+      let x = margin;
+      cells.forEach((cell, index) => {
+        const w = index === 0 ? nameW : otherW;
+        out += `${x.toFixed(1)} ${(y - rowH).toFixed(1)} ${w.toFixed(1)} ${rowH.toFixed(1)} re S\n`;
+        const value = String(cell || '');
+        const parts = value.includes('£') ? value.split(/(?=£)/) : [value];
+        out += text(x + 3, y - 12, bold ? 8 : 7, (parts[0] || '').trim().slice(0, 28));
+        if (parts[1]) out += text(x + 3, y - 22, 7, parts[1].trim().slice(0, 28));
+        x += w;
+      });
+      y -= rowH;
+    };
+    drawRow(headers, true);
+    body.forEach((row, index) => drawRow(row, sheet.showTotals && index === body.length - 1));
+    if (!out.endsWith('\n')) out += '\n';
+    return out;
+  });
+  const objects = [];
+  const add = (body) => { objects.push(body); return objects.length; };
+  add('<< /Type /Catalog /Pages 2 0 R >>');
+  add('');
+  add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  const pageRefs = [];
+  streams.forEach(stream => {
+    const contentId = add(`<< /Length ${stream.length} >>\nstream\n${stream}endstream`);
+    const pageId = add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Contents ${contentId} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`);
+    pageRefs.push(`${pageId} 0 R`);
+  });
+  objects[1] = `<< /Type /Pages /Kids [${pageRefs.join(' ')}] /Count ${pageRefs.length} >>`;
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((body, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  offsets.slice(1).forEach(offset => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
+  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return pdf;
+}
+
+async function exportTimesheetPdf() {
+  const model = timesheetGrid || await buildTimesheetModel();
+  if (!model) return alert('Open Timesheets while signed in as the business first.');
+  if (!model.people.length) return alert('No employees to export.');
+  const pdf = buildTimesheetPdf(model);
+  const blob = new Blob([pdf], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = timesheetFileName('pdf');
+  a.click();
+}
+window.exportTimesheetPdf = exportTimesheetPdf;
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
