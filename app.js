@@ -2551,10 +2551,20 @@ async function buildTimesheetModel() {
   };
 }
 
+function dayCellParts(cell) {
+  if (!cell) return { top: '', bottom: '' };
+  if (cell.notOut) return { top: 'Not out', bottom: '' };
+  if (cell.hoursLabel !== undefined || cell.payLabel !== undefined) {
+    return { top: cell.hoursLabel || '', bottom: cell.payLabel || '' };
+  }
+  return { top: cell.hours || '', bottom: cell.pay || '' };
+}
+
 function timesheetCellPlain(cell) {
-  if (!cell) return '';
-  if (cell.notOut) return 'Not out';
-  return [cell.hoursLabel, cell.payLabel].filter(Boolean).join(' ');
+  const parts = dayCellParts(cell);
+  if (!parts.top && !parts.bottom) return '';
+  if (!parts.bottom) return parts.top;
+  return parts.top + '\n' + parts.bottom;
 }
 
 async function loadTimesheetSummary() {
@@ -2630,7 +2640,7 @@ async function exportTimesheetCsv() {
   });
   const total = ['Total', ...model.dates.map(date => {
     const cell = model.totals.days[date.key];
-    return [cell.hours, cell.pay].filter(Boolean).join(' ');
+    return [cell.hours, cell.pay].filter(Boolean).join('\n');
   }), model.totals.hours, model.totals.pay];
   lines.push(total.map(csvField).join(','));
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -2652,11 +2662,11 @@ function buildTimesheetPdf(model) {
   const pageW = 842;
   const pageH = 595;
   const margin = 28;
-  const rowH = 28;
+  const rowH = 34;
   const sheets = [];
   dayGroups.forEach((dates, groupIndex) => {
     const lastDays = groupIndex === dayGroups.length - 1;
-    const perPage = 14;
+    const perPage = 12;
     const chunks = [];
     for (let i = 0; i < model.people.length; i += perPage) chunks.push(model.people.slice(i, i + perPage));
     if (!chunks.length) chunks.push([]);
@@ -2665,19 +2675,16 @@ function buildTimesheetPdf(model) {
     });
   });
   const streams = sheets.map(sheet => {
-    const headers = ['Employee', ...sheet.dates.map(date => date.label)];
-    if (sheet.lastDays) headers.push('Total hours', 'Pay');
+    const headers = [{ text: 'Employee' }, ...sheet.dates.map(date => ({ text: date.label }))];
+    if (sheet.lastDays) headers.push({ text: 'Total hours' }, { text: 'Pay' });
     const body = sheet.people.map(person => {
-      const row = [person.name, ...sheet.dates.map(date => timesheetCellPlain(person.days[date.key]))];
-      if (sheet.lastDays) row.push(person.totalHours, person.totalPay);
+      const row = [{ text: person.name }, ...sheet.dates.map(date => ({ split: dayCellParts(person.days[date.key]) }))];
+      if (sheet.lastDays) row.push({ text: person.totalHours }, { text: person.totalPay });
       return row;
     });
     if (sheet.showTotals) {
-      const total = ['Total', ...sheet.dates.map(date => {
-        const cell = model.totals.days[date.key];
-        return [cell.hours, cell.pay].filter(Boolean).join(' ');
-      })];
-      if (sheet.lastDays) total.push(model.totals.hours, model.totals.pay);
+      const total = [{ text: 'Total', bold: true }, ...sheet.dates.map(date => ({ split: dayCellParts(model.totals.days[date.key]) }))];
+      if (sheet.lastDays) total.push({ text: model.totals.hours }, { text: model.totals.pay });
       body.push(total);
     }
     const nameW = 130;
@@ -2695,17 +2702,22 @@ function buildTimesheetPdf(model) {
       let x = margin;
       cells.forEach((cell, index) => {
         const w = index === 0 ? nameW : otherW;
-        out += `${x.toFixed(1)} ${(y - rowH).toFixed(1)} ${w.toFixed(1)} ${rowH.toFixed(1)} re S\n`;
-        const value = String(cell || '');
-        const parts = value.includes('£') ? value.split(/(?=£)/) : [value];
-        out += text(x + 3, y - 12, bold ? 8 : 7, (parts[0] || '').trim().slice(0, 28));
-        if (parts[1]) out += text(x + 3, y - 22, 7, parts[1].trim().slice(0, 28));
+        const bottom = y - rowH;
+        out += `${x.toFixed(1)} ${bottom.toFixed(1)} ${w.toFixed(1)} ${rowH.toFixed(1)} re S\n`;
+        if (cell.split) {
+          const mid = y - rowH / 2;
+          out += `${x.toFixed(1)} ${mid.toFixed(1)} m ${(x + w).toFixed(1)} ${mid.toFixed(1)} l S\n`;
+          out += text(x + 3, mid + 4, 8, String(cell.split.top || '').slice(0, 22));
+          out += text(x + 3, bottom + 4, 7, String(cell.split.bottom || '').slice(0, 22));
+        } else {
+          out += text(x + 3, bottom + 12, bold || cell.bold ? 8 : 7, String(cell.text || '').slice(0, 28));
+        }
         x += w;
       });
       y -= rowH;
     };
     drawRow(headers, true);
-    body.forEach((row, index) => drawRow(row, sheet.showTotals && index === body.length - 1));
+    body.forEach(row => drawRow(row, false));
     if (!out.endsWith('\n')) out += '\n';
     return out;
   });
