@@ -1937,9 +1937,36 @@ async function archiveStaff(id) {
   loadStaff();
 }
 window.archiveStaff = archiveStaff;
+function isHourlyWorker(type) {
+  return type === 'hourly' || type === 'irregular';
+}
+
+function setWorkerTypeSelect(staffId, stored) {
+  const select = document.getElementById('worker-type-' + staffId);
+  if (!select) return;
+  const value = String(stored || '').trim();
+  select.replaceChildren();
+  const add = (val, label) => {
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = label;
+    select.appendChild(opt);
+  };
+  if (value && value !== 'hourly' && value !== 'salaried' && value !== 'irregular') {
+    add(value, 'Saved value: ' + value);
+  }
+  add('hourly', 'Hourly');
+  add('salaried', 'Salaried');
+  if (!value) add('', 'Not set');
+  if (value === 'irregular') select.value = 'hourly';
+  else select.value = value === 'hourly' || value === 'salaried' || (value && value !== 'irregular') ? value : '';
+}
+
 async function saveWorkerType(staffId) {
   const type = document.getElementById('worker-type-' + staffId).value;
-  await db.from('staff').update({ worker_type: type }).eq('id', staffId);
+  if (!type) return;
+  const { error } = await db.from('staff').update({ worker_type: type }).eq('id', staffId).eq('owner_id', currentUser.id);
+  if (error) alert(error.message);
 }
 async function saveHourlyRate(staffId) {
   await saveAgreedTerms(staffId);
@@ -2040,10 +2067,7 @@ async function openEmployeeProfile(staffId) {
     ${staff.starter_form_completed ? '<p style="color:#16a34a;">Starter form completed</p>' : '<p style="color:#d97706;">Starter form not yet submitted</p>'}
     ${staff.statutory_received ? '<p style="color:#16a34a;">Statutory documents received</p>' : '<p style="color:#94a3b8;">Statutory documents not yet sent</p>'}
     <label style="display:block; margin:0.75rem 0;">Worker type
-      <select id="worker-type-${staffId}" style="margin-left:0.5rem;" onchange="saveWorkerType('${staffId}')">
-        <option value="hourly" ${staff.worker_type==='hourly'||staff.worker_type==='irregular'?'selected':''}>Hourly</option>
-        <option value="salaried" ${staff.worker_type==='salaried'||!staff.worker_type?'selected':''}>Salaried</option>
-      </select>
+      <select id="worker-type-${staffId}" style="margin-left:0.5rem;" onchange="saveWorkerType('${staffId}')"></select>
     </label>
     ${staff.starter_form_completed ? `<button onclick="resetStarterForm('${staffId}')" style="margin-bottom:1rem;">Send another form</button>` : ''}
     <form id="edit-profile" style="text-align:left; display:flex; flex-direction:column; gap:0.75rem; max-width:480px;">
@@ -2078,6 +2102,7 @@ async function openEmployeeProfile(staffId) {
     </form>
   `;
   document.getElementById('edit-profile').onsubmit = (e) => saveProfile(e, staffId);
+  setWorkerTypeSelect(staffId, staff.worker_type);
   document.getElementById('upload-doc').onsubmit = (e) => uploadDocument(e, staffId);
   document.getElementById('show-pin-btn').onclick = () => {
     const input = document.getElementById('edit-pin');
@@ -2153,6 +2178,8 @@ async function saveProfile(e, staffId) {
     pin: document.getElementById('edit-pin').value.trim(),
     hourly_rate: parseFloat(document.getElementById('edit-rate').value) || 0
   };
+  const workerType = document.getElementById('worker-type-' + staffId)?.value;
+  if (workerType) updates.worker_type = workerType;
   const { data: existing } = await db.from('staff').select('starter_form_data, hourly_rate').eq('id', staffId).eq('owner_id', currentUser.id).single();
   const previous = parseFloat(existing?.hourly_rate) || 0;
   updates.starter_form_data = {
@@ -2440,11 +2467,11 @@ async function loadTimesheetSummary() {
     .gte('timestamp', fetchStart.toISOString())
     .lte('timestamp', fetchEnd.toISOString())
     .order('timestamp');
-  const { data: staff } = await db.from('staff').select('id, name, email, hourly_rate').eq('owner_id', currentUser.id).order('name');
+  const { data: staff } = await db.from('staff').select('id, name, email, hourly_rate, worker_type').eq('owner_id', currentUser.id).order('name');
   const rateQuery = await db.from('pay_rates').select('staff_id, hourly_rate, effective_from').eq('owner_id', currentUser.id);
   const history = rateQuery.error ? null : (rateQuery.data || []);
   const byStaff = {};
-  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, email: s.email, rate: parseFloat(s.hourly_rate) || 0, clocks: [] });
+  (staff || []).forEach(s => byStaff[s.id] = { name: s.name, email: s.email, rate: parseFloat(s.hourly_rate) || 0, workerType: s.worker_type || '', clocks: [] });
   (clocks || []).forEach(c => {
     if (!byStaff[c.staff_id]) return;
     byStaff[c.staff_id].clocks.push(c);
@@ -2457,7 +2484,7 @@ async function loadTimesheetSummary() {
   const start = new Date(range.start);
   const end = new Date(range.end);
   let html = `<h4>Daily Hours Summary</h4>
-    <p style="color:#64748b; margin-top:0;">Click a day to correct a missed clock-in, break or clock-out. Pay is gross pay only. It excludes employer National Insurance, pension and holiday pay.</p>
+    <p style="color:#64748b; margin-top:0;">Click a day to correct a missed clock-in, break or clock-out. Pay is gross pay for hourly staff only. Salaried staff are shown as hours, not an hourly amount. It excludes employer National Insurance, pension and holiday pay.</p>
     <table style="border-collapse:collapse; width:100%; background:white;"><thead><tr><th style="border:1px solid #e2e8f0; padding:0.5rem;">Team Member</th>`;
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     dates.push(toDateString(d));
@@ -2483,7 +2510,8 @@ async function loadTimesheetSummary() {
       const notOut = figures.notOut;
       const soFar = figures.running && date === today;
       const rate = rateForDay(history, id, date, s.rate);
-      const pay = shown > 0 && rate > 0 ? shown * rate : 0;
+      const hourlyPay = isHourlyWorker(s.workerType);
+      const pay = hourlyPay && shown > 0 && rate > 0 ? shown * rate : 0;
       if (shown > 0) {
         rowHours += shown;
         rowPay += pay;
@@ -2501,14 +2529,23 @@ async function loadTimesheetSummary() {
       let label = '';
       if (notOut) label = 'Not out';
       else if (shown > 0 || soFar) {
-        const payLine = pay > 0 ? `<div style="font-size:0.75rem; color:#64748b;">£${formatPay(pay)}${soFar ? ' so far' : ''}</div>` : '';
+        let payLine = '';
+        if (!hourlyPay) {
+          const payLabel = s.workerType === 'salaried' ? 'Salaried' : (s.workerType ? esc(s.workerType) : 'Not set');
+          payLine = `<div style="font-size:0.75rem; color:#64748b;">${payLabel}</div>`;
+        } else if (pay > 0) {
+          payLine = `<div style="font-size:0.75rem; color:#64748b;">£${formatPay(pay)}${soFar ? ' so far' : ''}</div>`;
+        }
         label = `${formatHours(shown)}${soFar ? ' so far' : ''}${payLine}`;
       }
       html += `<td class="day-cell" data-staff="${id}" data-date="${date}" data-name="${esc(s.name)}" title="${notOut || figures.open ? 'Not clocked out. Click to add the missing time.' : 'Click to correct times'}" style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; cursor:pointer; ${colour}">${label}</td>`;
     });
     const rowStyle = rowSoFar ? 'font-style:italic;' : '';
     html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600; ${rowStyle}">${rowHours > 0 ? formatHours(rowHours) : ''}${rowSoFar ? ' so far' : ''}</td>`;
-    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${rowStyle}">${rowPay > 0 ? '£' + formatPay(rowPay) : ''}${rowSoFar && rowPay > 0 ? ' so far' : ''}</td>`;
+    const rowPayLabel = !isHourlyWorker(s.workerType)
+      ? (s.workerType === 'salaried' ? 'Salaried' : (s.workerType ? esc(s.workerType) : 'Not set'))
+      : (rowPay > 0 ? '£' + formatPay(rowPay) + (rowSoFar ? ' so far' : '') : '');
+    html += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; ${rowStyle}">${rowPayLabel}</td>`;
     html += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button onclick="sendTimesheetToMember('${id}','${esc(s.name)}','${esc(s.email || '')}')" style="font-size:0.8rem;">Send to member</button></td></tr>`;
   });
   html += `<tr style="background:#f8fafc; font-weight:700;"><td style="border:1px solid #e2e8f0; padding:0.5rem;">Total</td>`;
@@ -2752,7 +2789,7 @@ async function exportHours() {
   const fetchStart = new Date(range.start.getTime() - 36 * 60 * 60 * 1000);
   const fetchEnd = new Date(range.end.getTime() + 36 * 60 * 60 * 1000);
   const { data: clocks } = await db.from('clocks')
-    .select('*, staff(name)')
+    .select('*, staff(name, worker_type, hourly_rate)')
     .eq('owner_id', currentUser.id)
     .gte('timestamp', fetchStart.toISOString())
     .lte('timestamp', fetchEnd.toISOString())
@@ -2762,14 +2799,24 @@ async function exportHours() {
     return date >= toDateString(range.start) && date <= toDateString(range.end);
   });
   if (!visible.length) return alert('No data in range');
-  const rows = [['Name','Type','Date','Time','Daily Hours']];
+  const rows = [['Name','Type','Date','Time','Daily Hours','Pay']];
   const now = new Date();
+  const rateQuery = await db.from('pay_rates').select('staff_id, hourly_rate, effective_from').eq('owner_id', currentUser.id);
+  const history = rateQuery.error ? null : (rateQuery.data || []);
   visible.forEach(c => {
     const d = new Date(c.timestamp);
     const dateStr = toDateString(d);
     const samePerson = clocks.filter(other => other.staff_id === c.staff_id);
-    const dailyHrs = formatHours(shownHours(dayFigures(samePerson, dateStr, now).hours));
-    rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), formatHHMM(d), dailyHrs]);
+    const shown = shownHours(dayFigures(samePerson, dateStr, now).hours);
+    const hourlyPay = isHourlyWorker(c.staff?.worker_type);
+    let payLabel = 'Salaried';
+    if (!c.staff?.worker_type) payLabel = 'Not set';
+    else if (c.staff.worker_type !== 'salaried' && !hourlyPay) payLabel = c.staff.worker_type;
+    if (hourlyPay) {
+      const rate = rateForDay(history, c.staff_id, dateStr, parseFloat(c.staff?.hourly_rate) || 0);
+      payLabel = shown > 0 && rate > 0 ? formatPay(shown * rate) : '';
+    }
+    rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), formatHHMM(d), formatHours(shown), payLabel]);
   });
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type: 'text/csv'});
@@ -2804,7 +2851,7 @@ async function loadSchedule() {
     d.setDate(week.start.getDate() + i);
     dayDates.push(toDateString(d));
   }
-  const { data: staff } = await db.from('staff').select('id, name, email, hourly_rate, holiday_booked').eq('owner_id', currentUser.id).eq('archived', false).order('name');
+  const { data: staff } = await db.from('staff').select('id, name, email, hourly_rate, holiday_booked, worker_type').eq('owner_id', currentUser.id).eq('archived', false).order('name');
   const rateQuery = await db.from('pay_rates').select('staff_id, hourly_rate, effective_from').eq('owner_id', currentUser.id);
   window._payRateHistory = rateQuery.error ? null : (rateQuery.data || []);
   const startDate = toDateString(week.start);
@@ -2850,7 +2897,7 @@ async function loadSchedule() {
   dayDates.forEach(date => { dayWages[date] = 0; });
   (staff || []).forEach(s => {
     let totalHours = 0;
-    table += `<tr data-id="${s.id}" data-name="${s.name}" data-rate="${parseFloat(s.hourly_rate) || 0}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
+    table += `<tr data-id="${s.id}" data-name="${s.name}" data-rate="${parseFloat(s.hourly_rate) || 0}" data-worker="${esc(s.worker_type || '')}"><td style="border:1px solid #e2e8f0; padding:0.5rem; font-weight:600;">${s.name}</td>`;
     dayDates.forEach(date => {
       const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
       const isHoliday = (s.holiday_booked || []).some(p => date >= p.start && date <= p.end);
@@ -2866,7 +2913,7 @@ async function loadSchedule() {
           const shown = shownHours(shiftHours);
           const dayRate = rateForDay(window._payRateHistory, s.id, date, parseFloat(s.hourly_rate) || 0);
           totalHours += shown;
-          dayWages[date] += shown * dayRate;
+          if (isHourlyWorker(s.worker_type)) dayWages[date] += shown * dayRate;
           table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
             <div style="font-size:0.65rem; color:#94a3b8;">Shift</div>
             <input type="time" lang="en-GB" class="shift-start shift-time" data-date="${date}" value="${start}">
@@ -2888,9 +2935,12 @@ async function loadSchedule() {
         wage += shownHours(hoursBetween(shift.start_time, shift.end_time)) * rateForDay(window._payRateHistory, s.id, date, rate);
       });
     });
-    grandTotalWage += wage;
+    if (isHourlyWorker(s.worker_type)) grandTotalWage += wage;
+    const wageLabel = isHourlyWorker(s.worker_type)
+      ? '£' + wage.toFixed(2)
+      : (s.worker_type === 'salaried' ? 'Salaried' : (s.worker_type ? esc(s.worker_type) : 'Not set'));
     table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center; font-weight:600;">${totalHours.toFixed(1)}</td>`;
-    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">£${wage.toFixed(2)}</td>`;
+    table += `<td style="border:1px solid #e2e8f0; padding:0.5rem; text-align:center;">${wageLabel}</td>`;
     table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center;"><button type="button" onclick="sendShiftsToMember('${s.id}', this)" style="font-size:0.8rem; padding:0.3rem 0.5rem;">Send to member</button></td>`;
     table += '</tr>';
   });
@@ -2955,6 +3005,8 @@ function updateScheduleTotals() {
     let wage = 0;
     const starts = row.querySelectorAll('.shift-start');
     const ends = row.querySelectorAll('.shift-end');
+    const worker = row.dataset.worker || '';
+    const hourlyPay = isHourlyWorker(worker);
     const fallback = parseFloat(row.dataset.rate) || 0;
     const staffId = row.dataset.id;
     starts.forEach((inp, i) => {
@@ -2962,14 +3014,14 @@ function updateScheduleTotals() {
       hours += shiftHours;
       const date = inp.dataset.date;
       const rate = rateForDay(window._payRateHistory, staffId, date, fallback);
-      if (date) dayTotals[date] = (dayTotals[date] || 0) + (shiftHours * rate);
-      wage += shiftHours * rate;
+      if (hourlyPay && date) dayTotals[date] = (dayTotals[date] || 0) + (shiftHours * rate);
+      if (hourlyPay) wage += shiftHours * rate;
     });
-    grand += wage;
+    if (hourlyPay) grand += wage;
     const cells = row.querySelectorAll('td');
     if (cells.length >= 2) {
       cells[cells.length - 3].textContent = hours.toFixed(1);
-      cells[cells.length - 2].textContent = '£' + wage.toFixed(2);
+      cells[cells.length - 2].textContent = hourlyPay ? '£' + wage.toFixed(2) : (worker === 'salaried' ? 'Salaried' : (worker || 'Not set'));
     }
   });
   document.querySelectorAll('#schedule-tab .day-cost').forEach(cell => {
