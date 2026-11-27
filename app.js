@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         showAuth();
         const loginModal = document.getElementById('login-modal');
         if (loginModal) loginModal.style.display = 'flex';
-      } else {
+      } else if (!restoreKeypadSession(path)) {
         showAuth();
       }
     }
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function updateTime() {
   applyClockStyle();
   const el = document.getElementById('current-time');
-  if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (el) el.textContent = formatHHMM(new Date());
 }
 
 function updatePinDots() {
@@ -199,7 +199,7 @@ function setupEventListeners() {
   document.getElementById('passkey-login-btn')?.addEventListener('click', signInWithPasskey);
   document.getElementById('add-passkey-btn')?.addEventListener('click', registerPasskey);
   document.getElementById('keypad-admin-btn')?.addEventListener('click', () => {
-    window._keypadOwnerId = null;
+    clearKeypadSession();
     showAuth();
   });
   document.getElementById('keypad-employee-btn')?.addEventListener('click', () => {
@@ -211,12 +211,7 @@ function setupEventListeners() {
   });
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
-  document.getElementById('exit-admin')?.addEventListener('click', async () => {
-    currentUser = null;
-    window._keypadOwnerId = null;
-    try { await db.auth.signOut(); } catch (err) { /* still leave the dashboard */ }
-    showChooser();
-  });
+  document.getElementById('exit-admin')?.addEventListener('click', exitAdmin);
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
   document.getElementById('member-btn')?.addEventListener('click', showMemberLogin);
   document.getElementById('home-member-btn')?.addEventListener('click', showMemberLogin);
@@ -545,6 +540,48 @@ function showChooser() {
   document.getElementById('chooser-screen').classList.add('active');
 }
 window.showChooser = showChooser;
+
+async function exitAdmin() {
+  const btn = document.getElementById('exit-admin');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Signing out…';
+  }
+  try {
+    const { error } = await db.auth.signOut();
+    if (error) throw error;
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Exit';
+    }
+    alert(err.message || 'Could not sign out. Stay on this page and try again.');
+    return;
+  }
+  currentUser = null;
+  clearKeypadSession();
+  showAuth();
+}
+
+function restoreKeypadSession(path) {
+  if (path === '/employee' || path === '/portal' || path === '/login') return false;
+  const ownerId = localStorage.getItem('timerogue_keypad_owner');
+  if (!ownerId) return false;
+  window._keypadOwnerId = ownerId;
+  currentUser = { id: ownerId };
+  showKiosk();
+  return true;
+}
+
+function clearKeypadSession() {
+  window._keypadOwnerId = null;
+  localStorage.removeItem('timerogue_keypad_owner');
+}
+
+function formatHHMM(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 function showKiosk() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1223,6 +1260,7 @@ window.keypadLogin = async function keypadLogin() {
     }
     window._keypadOwnerId = data;
     currentUser = { id: data };
+    localStorage.setItem('timerogue_keypad_owner', data);
     document.getElementById('keypad-modal').style.display = 'none';
     showKiosk();
     status.textContent = '';
@@ -1306,13 +1344,24 @@ async function showActions() {
 
 async function recordAction(type) {
   const ownerId = window._keypadOwnerId || currentUser.id;
+  const buttons = document.getElementById('action-buttons');
+  if (buttons) buttons.innerHTML = '';
+  showStatus('Recording…');
   if (type === 'in' || type === 'out') {
     const { data: allowed } = await db.rpc('keypad_can_clock', { p_owner_id: ownerId });
-    if (allowed === false) return showStatus('Clock-in is locked. The site trial has ended or the plan does not include it.', 'error');
+    if (allowed === false) {
+      showStatus('Clock-in is locked. The site trial has ended or the plan does not include it.', 'error');
+      showActions();
+      return;
+    }
     const { data: geo } = await db.rpc('keypad_geofence', { p_owner_id: ownerId });
     if (geo?.geofence_enabled && geo.geofence_lat && geo.geofence_lng) {
       const ok = await checkGeofence(geo.geofence_lat, geo.geofence_lng);
-      if (!ok) return showStatus('You must be within 50m of the workplace to clock ' + type, 'error');
+      if (!ok) {
+        showStatus('You must be within 50m of the workplace to clock ' + type, 'error');
+        showActions();
+        return;
+      }
     }
   }
   const { error } = await db.rpc('keypad_clock', {
@@ -1321,11 +1370,14 @@ async function recordAction(type) {
     p_type: type,
     p_pin: currentPin
   });
-  if (error) return showStatus(error.message || 'Error recording', 'error');
+  if (error) {
+    showStatus(error.message || 'Error recording', 'error');
+    showActions();
+    return;
+  }
   const labels = { in: 'Clocked in', out: 'Clocked out', break_start: 'Break started', break_end: 'Break ended' };
-  const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  showStatus(`${labels[type] || 'Recorded'} at ${time}, ${currentStaff.name}`);
-  setTimeout(showPin, 1500);
+  showStatus(`${labels[type] || 'Recorded'} at ${formatHHMM(new Date())}, ${currentStaff.name}`);
+  setTimeout(showPin, 2500);
 }
 
 function checkGeofence(lat, lng) {
@@ -1347,11 +1399,14 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+let statusTimer = null;
 function showStatus(msg, type = '') {
   const el = document.getElementById('status-message');
+  if (!el) return;
   el.textContent = msg;
   el.className = `status ${type}`;
-  setTimeout(() => el.textContent = '', 4000);
+  if (statusTimer) clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { el.textContent = ''; }, 4000);
 }
 
 async function updateShopLogo() {
@@ -1574,7 +1629,7 @@ async function loadSettings() {
   const tab = document.getElementById('settings-tab');
   const { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
   const currentStyle = localStorage.getItem('clock_style') || 'plain';
-  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = formatHHMM(new Date());
   tab.innerHTML = `
     <h3>Holiday year</h3>
     <label>Starts on (MM-DD)<br>
@@ -1634,6 +1689,7 @@ async function loadSettings() {
       <input type="text" id="keypad-username-set" placeholder="Username (min 6 characters)" minlength="6" value="${profile?.keypad_username || ''}" required>
       <input type="password" id="keypad-password-set" placeholder="Password (min 6 characters)" minlength="6" required>
       <button type="submit">Save keypad login</button>
+      <p id="keypad-save-note" style="min-height:1.2em; margin:0; font-size:0.9rem;"></p>
     </form>
   `;
   document.getElementById('save-holiday-year').onclick = async () => {
@@ -1737,17 +1793,26 @@ async function saveKeypadLogin(e) {
   const password = document.getElementById('keypad-password-set').value;
   if (username.length < 6) return alert('Username must be at least 6 characters');
   if (password.length < 6) return alert('Password must be at least 6 characters');
+  const note = document.getElementById('keypad-save-note');
   const { error } = await db.from('profiles').update({
     keypad_username: username,
     keypad_password: password
   }).eq('id', currentUser.id);
   if (error) {
-    if (error.code === '23505' || /unique|duplicate/i.test(error.message)) {
-      return alert('That username is already taken. Please choose another.');
+    const message = (error.code === '23505' || /unique|duplicate/i.test(error.message))
+      ? 'That username is already taken. Please choose another.'
+      : (error.message || 'Could not save the keypad login');
+    if (note) {
+      note.style.color = '#dc2626';
+      note.textContent = message;
     }
-    return alert(error.message);
+    return;
   }
-  showStatus('Keypad login saved. Use these details on the tablet.', 'success');
+  if (note) {
+    note.style.color = '#16a34a';
+    note.textContent = 'Keypad login saved';
+  }
+  document.getElementById('keypad-password-set').value = '';
 }
 
 async function uploadLogo(e) {
@@ -2279,8 +2344,16 @@ function dayIsOpen(entries) {
 }
 
 function clockTimeValue(ts) {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatHHMM(ts);
+}
+
+function normaliseHHMM(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (hh > 23 || mm > 59) return null;
+  return `${String(hh).padStart(2, '0')}:${match[2]}`;
 }
 
 function clockStamp(dateStr, hhmm) {
@@ -2367,12 +2440,20 @@ function renderDayEditor() {
       : (row.adjusted && row.originalTimestamp ? `Adjusted · was ${clockTimeValue(row.originalTimestamp)}` : '');
     line.innerHTML = `
       <select data-field="type" style="padding:0.45rem;">${options}</select>
-      <input data-field="time" type="time" value="${esc(row.time)}" style="padding:0.45rem;">
+      <input data-field="time" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${esc(row.time)}" style="padding:0.45rem; width:100%; font-variant-numeric:tabular-nums;">
       <span style="color:#b45309; font-size:0.8rem;">${esc(note)}</span>
       <button type="button" data-field="remove" style="background:transparent; color:#94a3b8; border:none;">×</button>`;
     line.querySelector('[data-field="type"]').value = row.type;
     line.querySelector('[data-field="type"]').onchange = (e) => { dayEdit.rows[index].type = e.target.value; renderDayEditor(); };
-    line.querySelector('[data-field="time"]').onchange = (e) => { dayEdit.rows[index].time = e.target.value; renderDayEditor(); };
+    line.querySelector('[data-field="time"]').onchange = (e) => {
+      const next = normaliseHHMM(e.target.value);
+      if (!next) {
+        e.target.value = dayEdit.rows[index].time;
+        return;
+      }
+      dayEdit.rows[index].time = next;
+      renderDayEditor();
+    };
     line.querySelector('[data-field="remove"]').onclick = () => { dayEdit.rows[index].deleted = true; renderDayEditor(); };
     rows.appendChild(line);
   });
@@ -2493,7 +2574,7 @@ async function exportHours() {
     const dateStr = d.toISOString().slice(0,10);
     const key = `${c.staff?.name}|${dateStr}`;
     const dailyHrs = calculateHours(byStaffDate[key] || []).toFixed(1);
-    rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}), dailyHrs]);
+    rows.push([c.staff?.name || '', c.type, d.toLocaleDateString('en-GB'), formatHHMM(d), dailyHrs]);
   });
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type: 'text/csv'});
@@ -2589,8 +2670,8 @@ async function loadSchedule() {
           dayWages[date] += shiftHours * (parseFloat(s.hourly_rate) || 0);
           table += `<div class="shift-slot" style="display:inline-block; margin:0 2px;">
             <div style="font-size:0.65rem; color:#94a3b8;">Shift</div>
-            <input type="time" class="shift-start shift-time" data-date="${date}" value="${start}">
-            <br><input type="time" class="shift-end shift-time" data-date="${date}" value="${end}">
+            <input type="time" lang="en-GB" class="shift-start shift-time" data-date="${date}" value="${start}">
+            <br><input type="time" lang="en-GB" class="shift-end shift-time" data-date="${date}" value="${end}">
           </div>`;
         });
         table += `</div>
@@ -2639,8 +2720,8 @@ async function loadSchedule() {
       extra.style.display = 'inline-block';
       extra.style.marginLeft = '4px';
       extra.innerHTML = `
-        <input type="time" class="shift-start shift-time" data-date="${date}">
-        <br><input type="time" class="shift-end shift-time" data-date="${date}">
+        <input type="time" lang="en-GB" class="shift-start shift-time" data-date="${date}">
+        <br><input type="time" lang="en-GB" class="shift-end shift-time" data-date="${date}">
       `;
       const flex = btn.previousElementSibling;
       if (flex) flex.appendChild(extra);
@@ -2869,30 +2950,12 @@ async function uploadSchedule() {
   if (!file) return alert('Choose a CSV file');
   const text = await file.text();
   const lines = text.trim().split('\n').slice(1);
-  const { data: staff } = await db.from('staff').select('id, name').eq('owner_id', currentUser.id);
-  const staffIdByName = {};
-  (staff || []).forEach(s => {
-    if (!s.name) return;
-    if (Object.prototype.hasOwnProperty.call(staffIdByName, s.name)) staffIdByName[s.name] = null;
-    else staffIdByName[s.name] = s.id;
-  });
   const rows = lines.map(line => {
     const [name, date, start_time, end_time] = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
-    return {
-      owner_id: currentUser.id,
-      staff_id: staffIdByName[name] || null,
-      name,
-      date,
-      start_time,
-      end_time
-    };
+    return { owner_id: currentUser.id, name, date, start_time, end_time };
   }).filter(r => r.name && r.date);
   if (!rows.length) return alert('No valid rows found');
-  let { error } = await db.from('schedules').insert(rows);
-  if (error && /staff_id/i.test(error.message || '')) {
-    const withoutId = rows.map(({ staff_id, ...rest }) => rest);
-    ({ error } = await db.from('schedules').insert(withoutId));
-  }
+  const { error } = await db.from('schedules').insert(rows);
   if (error) return alert(error.message);
   alert('Schedule uploaded');
   loadSchedule();
