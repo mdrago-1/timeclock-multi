@@ -2688,15 +2688,21 @@ function buildTimesheetPdf(model) {
     for (let i = 0; i < model.people.length; i += perPage) chunks.push(model.people.slice(i, i + perPage));
     if (!chunks.length) chunks.push([]);
     chunks.forEach((people, chunkIndex) => {
-      sheets.push({ dates, people, lastDays, showTotals: chunkIndex === chunks.length - 1, rowStart: chunkIndex * perPage });
+      sheets.push({ dates, people, lastDays, showTotals: !model.omitTotals && chunkIndex === chunks.length - 1, rowStart: chunkIndex * perPage });
     });
   });
   const streams = sheets.map(sheet => {
     const headers = [{ text: 'Employee' }, ...sheet.dates.map(date => ({ text: date.label }))];
-    if (sheet.lastDays) headers.push({ text: model.hoursHeader || 'Total hours' }, { text: model.payHeader || 'Pay' });
+    if (sheet.lastDays) {
+      headers.push({ text: model.hoursHeader || 'Total hours' });
+      if (!model.omitPay) headers.push({ text: model.payHeader || 'Pay' });
+    }
     const body = sheet.people.map(person => {
       const row = [{ text: person.name }, ...sheet.dates.map(date => ({ split: dayCellParts(person.days[date.key]) }))];
-      if (sheet.lastDays) row.push({ text: person.totalHours }, { text: person.totalPay });
+      if (sheet.lastDays) {
+        row.push({ text: person.totalHours });
+        if (!model.omitPay) row.push({ text: person.totalPay });
+      }
       return row;
     });
     if (sheet.showTotals) {
@@ -2713,8 +2719,11 @@ function buildTimesheetPdf(model) {
     y -= 22;
     out += textAt(margin, y - 10, 9, model.rangeLabel);
     y -= 16;
-    out += textAt(margin, y - 8, 7, model.note || 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
-    y -= 18;
+    const note = model.note === '' ? '' : (model.note || 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
+    if (note) {
+      out += textAt(margin, y - 8, 7, note);
+      y -= 18;
+    }
     const drawRow = (cells, options) => {
       let x = margin;
       if (options.header) out += '0.32 g\n';
@@ -3112,8 +3121,14 @@ async function loadSchedule() {
       <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
     <div style="margin-bottom:1rem;">${publishBtn}
-      <button type="button" onclick="exportScheduleCsv()" style="margin-top:0.5rem;">Export CSV</button>
-      <button type="button" onclick="exportSchedulePdf()" style="margin-top:0.5rem;">Export PDF</button>
+      <div style="margin-top:0.5rem;">
+        <button type="button" onclick="exportScheduleCsv('owner')">Export CSV (owner, includes pay)</button>
+        <button type="button" onclick="exportSchedulePdf('owner')">Export PDF (owner, includes pay)</button>
+      </div>
+      <div style="margin-top:0.5rem;">
+        <button type="button" onclick="exportScheduleCsv('staff')">Export CSV (staff, shifts only)</button>
+        <button type="button" onclick="exportSchedulePdf('staff')">Export PDF (staff, shifts only)</button>
+      </div>
     </div>
     <h4 style="margin:0.5rem 0 1rem;">Rota</h4>
     <div style="overflow-x:auto; margin-bottom:1rem;">
@@ -3234,7 +3249,8 @@ async function loadSchedule() {
   });
 }
 
-function collectScheduleModel() {
+function collectScheduleModel(kind) {
+  const staffCopy = kind === 'staff';
   const tab = document.getElementById('schedule-tab');
   const rows = tab ? [...tab.querySelectorAll('tbody tr[data-name]')] : [];
   if (!rows.length) return null;
@@ -3264,32 +3280,37 @@ function collectScheduleModel() {
         shifts.push(`${start}-${end}`);
         hours += shownHours(hoursBetween(start, end));
       });
-      const rate = rateForDay(window._payRateHistory, row.dataset.id, date, parseFloat(row.dataset.rate) || 0);
-      const cost = hourly && hours > 0 ? hours * rate : 0;
       if (hours > 0) dayHours[date] += hours;
-      if (cost > 0) dayPay[date] += cost;
+      const hoursLabel = holiday ? 'Holiday' : shifts.join('\n');
       let payLabel = '';
-      if (!holiday) {
+      if (staffCopy) {
+        payLabel = !holiday && hours > 0 ? formatHours(hours) + ' hrs' : '';
+      } else if (!holiday) {
+        const rate = rateForDay(window._payRateHistory, row.dataset.id, date, parseFloat(row.dataset.rate) || 0);
+        const cost = hourly && hours > 0 ? hours * rate : 0;
+        if (cost > 0) dayPay[date] += cost;
         if (!hourly) payLabel = worker === 'salaried' ? 'Salaried' : (worker || 'Not set');
         else if (cost > 0) payLabel = '£' + cost.toFixed(2);
       }
-      days[date] = { hoursLabel: holiday ? 'Holiday' : shifts.join('\n'), payLabel };
+      days[date] = { hoursLabel, payLabel };
     });
     return {
       name: row.dataset.name || cells[0]?.textContent.trim() || '',
       days,
       totalHours: cells[cells.length - 3]?.textContent.trim() || '',
-      totalPay: cells[cells.length - 2]?.textContent.trim() || ''
+      totalPay: staffCopy ? '' : (cells[cells.length - 2]?.textContent.trim() || '')
     };
   });
   const weekHours = Object.values(dayHours).reduce((sum, hours) => sum + hours, 0);
-  const weekPay = tab.querySelector('#schedule-week-total')?.textContent.trim() || '';
+  const weekPay = staffCopy ? '' : (tab.querySelector('#schedule-week-total')?.textContent.trim() || '');
   return {
-    title: 'Time Rogue schedule',
-    note: 'Gross wage is hourly staff only. Salaried staff show their shifts, not an hourly amount. Excludes employer NI, pension and holiday pay.',
+    title: staffCopy ? 'Time Rogue schedule (staff)' : 'Time Rogue schedule (owner)',
+    note: staffCopy ? '' : 'Gross wage is hourly staff only. Salaried staff show their shifts, not an hourly amount. Excludes employer NI, pension and holiday pay.',
     hoursHeader: 'Total hours',
     payHeader: 'Gross wage',
     totalLabel: 'Daily cost',
+    omitPay: staffCopy,
+    omitTotals: staffCopy,
     rowH: 48,
     rangeLabel: tab.querySelector('h3')?.textContent.trim() || 'Schedule',
     dates,
@@ -3297,7 +3318,7 @@ function collectScheduleModel() {
     totals: {
       days: Object.fromEntries(dates.map(date => [date.key, {
         hours: dayHours[date.key] > 0 ? formatHours(dayHours[date.key]) : '',
-        pay: dayPay[date.key] > 0 ? '£' + dayPay[date.key].toFixed(2) : ''
+        pay: !staffCopy && dayPay[date.key] > 0 ? '£' + dayPay[date.key].toFixed(2) : ''
       }])),
       hours: weekHours > 0 ? formatHours(weekHours) : '',
       pay: weekPay
@@ -3305,36 +3326,44 @@ function collectScheduleModel() {
   };
 }
 
-function scheduleFileName(ext) {
-  const label = (collectScheduleModel()?.rangeLabel || 'schedule').replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
-  return `schedule-${label || 'export'}.${ext}`;
+function scheduleFileName(model, ext) {
+  const who = model.omitPay ? 'staff' : 'owner';
+  const label = (model.rangeLabel || 'schedule').replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
+  return `schedule-${who}-${label || 'export'}.${ext}`;
 }
 
-function exportScheduleCsv() {
-  const model = collectScheduleModel();
+function exportScheduleCsv(kind) {
+  const model = collectScheduleModel(kind === 'staff' ? 'staff' : 'owner');
   if (!model) return alert('Open the Schedule first.');
-  const header = ['Employee', ...model.dates.map(date => date.label), model.hoursHeader, model.payHeader];
+  const header = ['Employee', ...model.dates.map(date => date.label), model.hoursHeader];
+  if (!model.omitPay) header.push(model.payHeader);
   const lines = [header.map(csvField).join(',')];
   model.people.forEach(person => {
-    lines.push([person.name, ...model.dates.map(date => timesheetCellPlain(person.days[date.key])), person.totalHours, person.totalPay].map(csvField).join(','));
+    const row = [person.name, ...model.dates.map(date => timesheetCellPlain(person.days[date.key])), person.totalHours];
+    if (!model.omitPay) row.push(person.totalPay);
+    lines.push(row.map(csvField).join(','));
   });
-  lines.push(['Daily cost', ...model.dates.map(date => timesheetCellPlain(model.totals.days[date.key])), model.totals.hours, model.totals.pay].map(csvField).join(','));
+  if (!model.omitTotals) {
+    const total = ['Daily cost', ...model.dates.map(date => timesheetCellPlain(model.totals.days[date.key])), model.totals.hours];
+    if (!model.omitPay) total.push(model.totals.pay);
+    lines.push(total.map(csvField).join(','));
+  }
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = scheduleFileName('csv');
+  a.download = scheduleFileName(model, 'csv');
   a.click();
 }
 window.exportScheduleCsv = exportScheduleCsv;
 
-function exportSchedulePdf() {
-  const model = collectScheduleModel();
+function exportSchedulePdf(kind) {
+  const model = collectScheduleModel(kind === 'staff' ? 'staff' : 'owner');
   if (!model) return alert('Open the Schedule first.');
   const pdf = buildTimesheetPdf(model);
   const blob = new Blob([pdf], { type: 'application/pdf' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = scheduleFileName('pdf');
+  a.download = scheduleFileName(model, 'pdf');
   a.click();
 }
 window.exportSchedulePdf = exportSchedulePdf;
