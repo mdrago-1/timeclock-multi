@@ -2679,11 +2679,11 @@ function buildTimesheetPdf(model) {
   const pageW = 842;
   const pageH = 595;
   const margin = 28;
-  const rowH = 34;
+  const rowH = model.rowH || 34;
+  const perPage = rowH > 36 ? 8 : 12;
   const sheets = [];
   dayGroups.forEach((dates, groupIndex) => {
     const lastDays = groupIndex === dayGroups.length - 1;
-    const perPage = 12;
     const chunks = [];
     for (let i = 0; i < model.people.length; i += perPage) chunks.push(model.people.slice(i, i + perPage));
     if (!chunks.length) chunks.push([]);
@@ -2693,14 +2693,14 @@ function buildTimesheetPdf(model) {
   });
   const streams = sheets.map(sheet => {
     const headers = [{ text: 'Employee' }, ...sheet.dates.map(date => ({ text: date.label }))];
-    if (sheet.lastDays) headers.push({ text: 'Total hours' }, { text: 'Pay' });
+    if (sheet.lastDays) headers.push({ text: model.hoursHeader || 'Total hours' }, { text: model.payHeader || 'Pay' });
     const body = sheet.people.map(person => {
       const row = [{ text: person.name }, ...sheet.dates.map(date => ({ split: dayCellParts(person.days[date.key]) }))];
       if (sheet.lastDays) row.push({ text: person.totalHours }, { text: person.totalPay });
       return row;
     });
     if (sheet.showTotals) {
-      const total = [{ text: 'Total', bold: true }, ...sheet.dates.map(date => ({ split: dayCellParts(model.totals.days[date.key]) }))];
+      const total = [{ text: model.totalLabel || 'Total', bold: true }, ...sheet.dates.map(date => ({ split: dayCellParts(model.totals.days[date.key]) }))];
       if (sheet.lastDays) total.push({ text: model.totals.hours }, { text: model.totals.pay });
       body.push(total);
     }
@@ -2709,11 +2709,11 @@ function buildTimesheetPdf(model) {
     let y = pageH - margin;
     let out = '0.5 w\n';
     const textAt = (x, yy, size, line) => `BT /F1 ${size} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${pdfEscape(line)}) Tj ET\n`;
-    out += textAt(margin, y - 12, 14, 'Time Rogue timesheet');
+    out += textAt(margin, y - 12, 14, model.title || 'Time Rogue timesheet');
     y -= 22;
     out += textAt(margin, y - 10, 9, model.rangeLabel);
     y -= 16;
-    out += textAt(margin, y - 8, 7, 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
+    out += textAt(margin, y - 8, 7, model.note || 'Pay is gross hourly pay only. Salaried staff are hours only. Excludes employer NI, pension and holiday pay.');
     y -= 18;
     const drawRow = (cells, options) => {
       let x = margin;
@@ -2733,12 +2733,17 @@ function buildTimesheetPdf(model) {
         const bottom = y - rowH;
         out += `${x.toFixed(1)} ${bottom.toFixed(1)} ${w.toFixed(1)} ${rowH.toFixed(1)} re S\n`;
         if (cell.split) {
-          const mid = y - rowH / 2;
-          const topText = String(cell.split.top || '').slice(0, 22);
+          const topLines = String(cell.split.top || '').split('\n').map(line => line.trim()).filter(Boolean).slice(0, 2);
           const bottomText = String(cell.split.bottom || '').slice(0, 22);
+          const mid = y - rowH / 2;
           out += `${x.toFixed(1)} ${mid.toFixed(1)} m ${(x + w).toFixed(1)} ${mid.toFixed(1)} l S\n`;
-          out += textAt(pdfCentered(x, w, topText, 8), mid + 4, 8, topText);
-          out += textAt(pdfCentered(x, w, bottomText, 7), bottom + 4, 7, bottomText);
+          if (topLines.length > 1) {
+            out += textAt(pdfCentered(x, w, topLines[0], 7), mid + 14, 7, topLines[0].slice(0, 22));
+            out += textAt(pdfCentered(x, w, topLines[1], 7), mid + 4, 7, topLines[1].slice(0, 22));
+          } else {
+            out += textAt(pdfCentered(x, w, topLines[0] || '', 8), mid + 4, 8, (topLines[0] || '').slice(0, 22));
+          }
+          out += textAt(pdfCentered(x, w, bottomText, 7), bottom + 5, 7, bottomText);
         } else {
           const size = options.header ? 8 : 7;
           const value = String(cell.text || '').slice(0, 28);
@@ -3106,7 +3111,10 @@ async function loadSchedule() {
       <h3 style="margin:0; flex:1; text-align:center;">${title}</h3>
       <button onclick="changeWeek(1)" style="font-size:1.2rem;">→</button>
     </div>
-    <div style="margin-bottom:1rem;">${publishBtn}</div>
+    <div style="margin-bottom:1rem;">${publishBtn}
+      <button type="button" onclick="exportScheduleCsv()" style="margin-top:0.5rem;">Export CSV</button>
+      <button type="button" onclick="exportSchedulePdf()" style="margin-top:0.5rem;">Export PDF</button>
+    </div>
     <h4 style="margin:0.5rem 0 1rem;">Rota</h4>
     <div style="overflow-x:auto; margin-bottom:1rem;">
       <table style="border-collapse:collapse; width:100%; background:white;">
@@ -3131,7 +3139,7 @@ async function loadSchedule() {
     dayDates.forEach(date => {
       const dayShifts = (schedules || []).filter(sc => sc.name === s.name && sc.date === date);
       const isHoliday = (s.holiday_booked || []).some(p => date >= p.start && date <= p.end);
-      table += `<td style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center; ${isHoliday ? 'background:#fef3c7;' : ''}">
+      table += `<td data-date="${date}" style="border:1px solid #e2e8f0; padding:0.25rem; text-align:center; ${isHoliday ? 'background:#fef3c7;' : ''}">
         ${isHoliday ? '<div style="font-size:0.7rem; color:#92400e; margin-bottom:2px;">Holiday</div>' : ''}
         <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">`;
       if (!isHoliday) {
@@ -3225,6 +3233,111 @@ async function loadSchedule() {
     };
   });
 }
+
+function collectScheduleModel() {
+  const tab = document.getElementById('schedule-tab');
+  const rows = tab ? [...tab.querySelectorAll('tbody tr[data-name]')] : [];
+  if (!rows.length) return null;
+  const dates = [...rows[0].querySelectorAll('td[data-date]')].map((cell, index) => ({
+    key: cell.dataset.date,
+    label: tab.querySelectorAll('thead th')[index + 1]?.textContent.trim() || cell.dataset.date
+  }));
+  const dayHours = {};
+  const dayPay = {};
+  dates.forEach(date => { dayHours[date.key] = 0; dayPay[date.key] = 0; });
+  const people = rows.map(row => {
+    const worker = row.dataset.worker || '';
+    const hourly = isHourlyWorker(worker);
+    const cells = [...row.querySelectorAll('td')];
+    const days = {};
+    row.querySelectorAll('td[data-date]').forEach(cell => {
+      const date = cell.dataset.date;
+      const holiday = /Holiday/.test(cell.textContent);
+      const starts = [...cell.querySelectorAll('.shift-start')];
+      const ends = [...cell.querySelectorAll('.shift-end')];
+      const shifts = [];
+      let hours = 0;
+      starts.forEach((input, index) => {
+        const start = input.value;
+        const end = ends[index]?.value || '';
+        if (!start || !end) return;
+        shifts.push(`${start}-${end}`);
+        hours += shownHours(hoursBetween(start, end));
+      });
+      const rate = rateForDay(window._payRateHistory, row.dataset.id, date, parseFloat(row.dataset.rate) || 0);
+      const cost = hourly && hours > 0 ? hours * rate : 0;
+      if (hours > 0) dayHours[date] += hours;
+      if (cost > 0) dayPay[date] += cost;
+      let payLabel = '';
+      if (!holiday) {
+        if (!hourly) payLabel = worker === 'salaried' ? 'Salaried' : (worker || 'Not set');
+        else if (cost > 0) payLabel = '£' + cost.toFixed(2);
+      }
+      days[date] = { hoursLabel: holiday ? 'Holiday' : shifts.join('\n'), payLabel };
+    });
+    return {
+      name: row.dataset.name || cells[0]?.textContent.trim() || '',
+      days,
+      totalHours: cells[cells.length - 3]?.textContent.trim() || '',
+      totalPay: cells[cells.length - 2]?.textContent.trim() || ''
+    };
+  });
+  const weekHours = Object.values(dayHours).reduce((sum, hours) => sum + hours, 0);
+  const weekPay = tab.querySelector('#schedule-week-total')?.textContent.trim() || '';
+  return {
+    title: 'Time Rogue schedule',
+    note: 'Gross wage is hourly staff only. Salaried staff show their shifts, not an hourly amount. Excludes employer NI, pension and holiday pay.',
+    hoursHeader: 'Total hours',
+    payHeader: 'Gross wage',
+    totalLabel: 'Daily cost',
+    rowH: 48,
+    rangeLabel: tab.querySelector('h3')?.textContent.trim() || 'Schedule',
+    dates,
+    people,
+    totals: {
+      days: Object.fromEntries(dates.map(date => [date.key, {
+        hours: dayHours[date.key] > 0 ? formatHours(dayHours[date.key]) : '',
+        pay: dayPay[date.key] > 0 ? '£' + dayPay[date.key].toFixed(2) : ''
+      }])),
+      hours: weekHours > 0 ? formatHours(weekHours) : '',
+      pay: weekPay
+    }
+  };
+}
+
+function scheduleFileName(ext) {
+  const label = (collectScheduleModel()?.rangeLabel || 'schedule').replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
+  return `schedule-${label || 'export'}.${ext}`;
+}
+
+function exportScheduleCsv() {
+  const model = collectScheduleModel();
+  if (!model) return alert('Open the Schedule first.');
+  const header = ['Employee', ...model.dates.map(date => date.label), model.hoursHeader, model.payHeader];
+  const lines = [header.map(csvField).join(',')];
+  model.people.forEach(person => {
+    lines.push([person.name, ...model.dates.map(date => timesheetCellPlain(person.days[date.key])), person.totalHours, person.totalPay].map(csvField).join(','));
+  });
+  lines.push(['Daily cost', ...model.dates.map(date => timesheetCellPlain(model.totals.days[date.key])), model.totals.hours, model.totals.pay].map(csvField).join(','));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = scheduleFileName('csv');
+  a.click();
+}
+window.exportScheduleCsv = exportScheduleCsv;
+
+function exportSchedulePdf() {
+  const model = collectScheduleModel();
+  if (!model) return alert('Open the Schedule first.');
+  const pdf = buildTimesheetPdf(model);
+  const blob = new Blob([pdf], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = scheduleFileName('pdf');
+  a.click();
+}
+window.exportSchedulePdf = exportSchedulePdf;
 
 function updateScheduleTotals() {
   const rows = document.querySelectorAll('#schedule-tab tbody tr[data-name]');
