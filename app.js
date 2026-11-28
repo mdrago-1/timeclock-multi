@@ -84,6 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Normal startup only if we didn't handle recovery or a portal setup link
     if (!recoveryHandled && !isPortalSetup) {
       const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+      if (path === '/keypad') {
+        await openKeypadPath();
+      } else {
       const { data: { session } } = await db.auth.getSession();
       if (session) {
         const { data: profile } = await db.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
@@ -113,6 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (loginModal) loginModal.style.display = 'flex';
       } else if (!restoreKeypadSession(path)) {
         showAuth();
+      }
       }
     }
   } catch (err) {
@@ -156,6 +160,10 @@ function setupEventListeners() {
     const m = document.getElementById('login-modal');
     if (m) m.style.display = 'flex';
   });
+  document.getElementById('shop-keypad-btn')?.addEventListener('click', () => {
+    window.location.href = '/keypad';
+  });
+  document.getElementById('keypad-username-fallback')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('kiosk-login-btn')?.addEventListener('click', showKioskLoginPanel);
   document.getElementById('member-setup-btn')?.addEventListener('click', () => showPortalSetup(document.getElementById('member-email')?.value || '', 'invite'));
   document.getElementById('portal-setup-cancel')?.addEventListener('click', () => {
@@ -207,9 +215,24 @@ function setupEventListeners() {
   document.getElementById('keypad-employee-btn')?.addEventListener('click', () => {
     showMemberLogin();
   });
-  document.getElementById('keypad-login-submit')?.addEventListener('click', keypadLogin);
+  document.getElementById('keypad-leave-btn')?.addEventListener('click', () => {
+    const modal = document.getElementById('keypad-leave-modal');
+    const status = document.getElementById('keypad-leave-status');
+    if (status) status.textContent = '';
+    if (modal) modal.style.display = 'flex';
+  });
+  document.getElementById('keypad-leave-cancel')?.addEventListener('click', () => {
+    document.getElementById('keypad-leave-modal').style.display = 'none';
+  });
+  document.getElementById('keypad-leave-submit')?.addEventListener('click', leaveKeypadDevice);
   document.getElementById('keypad-cancel')?.addEventListener('click', () => {
     document.getElementById('keypad-modal').style.display = 'none';
+  });
+  document.getElementById('keypad-login-submit')?.addEventListener('click', () => window.keypadLogin());
+  ['keypad-username', 'keypad-password'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') window.keypadLogin();
+    });
   });
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
@@ -588,6 +611,18 @@ function readStoredAccessToken() {
   }
 }
 
+function clearLocalAuth() {
+  const prefix = 'sb-bpljlflxkntyhyoekpkd-auth-token';
+  const keys = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch (err) { /* sign-out already requested */ }
+}
+
 function restoreKeypadSession(path) {
   if (path === '/employee' || path === '/portal' || path === '/login') return false;
   const ownerId = localStorage.getItem('timerogue_keypad_owner');
@@ -603,6 +638,255 @@ function clearKeypadSession() {
   localStorage.removeItem('timerogue_keypad_owner');
 }
 
+const KEYPAD_DEVICE_KEY = 'timerogue_keypad_device';
+
+function readKeypadDeviceToken() {
+  try { return localStorage.getItem(KEYPAD_DEVICE_KEY) || ''; } catch (err) { return ''; }
+}
+
+function showKeypadUnset(message) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const screen = document.getElementById('keypad-unset-screen');
+  if (screen) screen.classList.add('active');
+  const title = document.getElementById('keypad-unset-title');
+  const text = document.getElementById('keypad-unset-text');
+  if (message) {
+    if (title) title.textContent = 'This keypad is not available';
+    if (text) text.textContent = message;
+  } else {
+    if (title) title.textContent = "This device isn't set up yet";
+    if (text) text.textContent = 'Ask your manager to set it up from Settings.';
+  }
+}
+
+function keypadDbMissing(error) {
+  return /schema cache|does not exist|could not find the function|PGRST202/i.test(error?.message || '');
+}
+
+function keypadWasRemoved(error) {
+  return /removed|set it up again/i.test(error?.message || '');
+}
+
+function dropRemovedKeypad(error) {
+  if (!keypadWasRemoved(error)) return false;
+  try { localStorage.removeItem(KEYPAD_DEVICE_KEY); } catch (err) { /* still leave the pad */ }
+  window._keypadDeviceToken = null;
+  window._keypadDeviceLogo = null;
+  window._keypadGeo = null;
+  showKeypadUnset('This keypad has been removed. Ask your manager to set it up again from Settings.');
+  return true;
+}
+
+async function openKeypadPath() {
+  const token = readKeypadDeviceToken();
+  if (!token) {
+    showKeypadUnset();
+    return;
+  }
+  const { data, error } = await db.rpc('keypad_device_open', { p_token: token });
+  if (error) {
+    if (keypadDbMissing(error) || /failed to fetch|network|load failed/i.test(error.message || '')) {
+      showKeypadUnset(keypadDbMissing(error)
+        ? "This device isn't set up yet. Ask your manager to set it up from Settings."
+        : 'Could not reach Time Rogue. Check the connection and open this page again.');
+      return;
+    }
+    try { localStorage.removeItem(KEYPAD_DEVICE_KEY); } catch (err) { /* show the unset screen anyway */ }
+    showKeypadUnset();
+    return;
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
+    try { localStorage.removeItem(KEYPAD_DEVICE_KEY); } catch (err) { /* token is already useless */ }
+    showKeypadUnset();
+    return;
+  }
+  window._keypadDeviceToken = token;
+  window._keypadDeviceLogo = row.logo_url || null;
+  window._keypadGeo = {
+    geofence_enabled: !!row.geofence_enabled,
+    geofence_lat: row.geofence_lat,
+    geofence_lng: row.geofence_lng
+  };
+  window._keypadOwnerId = null;
+  currentUser = null;
+  try { localStorage.removeItem('timerogue_keypad_owner'); } catch (err) { /* username fallback is unused here */ }
+  showKiosk();
+}
+
+async function pairThisKeypadDevice() {
+  if (!currentUser) return alert('Log in as the business owner on this tablet first.');
+  const ok = await appConfirm('This tablet will show the PIN pad only. The business login will be signed out on this device. Staff will clock in with their PIN and will not see pay or timesheets.');
+  if (!ok) return;
+  const typed = window.prompt('Name this keypad', 'Shop tablet');
+  if (typed === null) return;
+  const name = typed.trim() || 'Shop tablet';
+  const button = document.getElementById('pair-keypad-btn');
+  if (button) button.disabled = true;
+  const { data, error } = await db.rpc('keypad_pair_device', { p_name: name });
+  if (error) {
+    if (button) button.disabled = false;
+    if (keypadDbMissing(error)) {
+      return alert('The database update still needs to be run before a keypad can be paired.');
+    }
+    return alert(error.message || 'Could not set up this keypad.');
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  const token = row?.token;
+  const id = row?.id;
+  if (!token) {
+    if (button) button.disabled = false;
+    return alert('The keypad was not created. Try again.');
+  }
+  try {
+    localStorage.setItem(KEYPAD_DEVICE_KEY, token);
+    localStorage.removeItem('timerogue_keypad_owner');
+  } catch (err) {
+    if (id) await db.rpc('keypad_revoke_device', { p_id: id });
+    if (button) button.disabled = false;
+    return alert('This browser blocked saving the keypad, so it was not left active.');
+  }
+  try {
+    const { error: signErr } = await db.auth.signOut({ scope: 'local' });
+    if (signErr) throw signErr;
+    clearLocalAuth();
+  } catch (err) {
+    try { localStorage.removeItem(KEYPAD_DEVICE_KEY); } catch (e) { /* revoke below */ }
+    if (id) {
+      try { await db.rpc('keypad_revoke_device', { p_id: id }); } catch (e) { /* owner is still signed in */ }
+    }
+    if (button) button.disabled = false;
+    return alert('Could not sign the business out, so this keypad was not left on the tablet. Try again.');
+  }
+  currentUser = null;
+  window._keypadOwnerId = null;
+  window.location.href = '/keypad';
+}
+
+function formatDeviceLastUsed(value) {
+  if (!value) return 'Not used yet';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Not used yet';
+  return d.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+
+function htmlEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&',
+    '<': '<',
+    '>': '>',
+    '"': '"',
+    "'": '&#39;'
+  }[c]));
+}
+
+async function renderKeypadDevices() {
+  const box = document.getElementById('keypad-devices');
+  if (!box) return;
+  const { data, error } = await db.rpc('keypad_list_devices');
+  if (error) {
+    box.innerHTML = keypadDbMissing(error)
+      ? '<p style="color:#b45309;">The database update still needs to be run before devices can be listed or paired.</p>'
+      : `<p style="color:#dc2626;">${htmlEscape(error.message || 'Could not load devices')}</p>`;
+    return;
+  }
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) {
+    box.innerHTML = '<p style="color:#64748b;">No keypad devices yet.</p>';
+    return;
+  }
+  box.innerHTML = rows.map((d) => `
+    <div style="display:flex; justify-content:space-between; gap:0.75rem; align-items:center; padding:0.6rem 0; border-bottom:1px solid #e2e8f0;">
+      <div>
+        <strong>${htmlEscape(d.name || 'Shop tablet')}</strong>
+        <div style="color:#64748b; font-size:0.85rem;">Last used: ${htmlEscape(formatDeviceLastUsed(d.last_used_at))}</div>
+      </div>
+      <button type="button" data-revoke="${htmlEscape(d.id)}" style="background:white; color:#b91c1c; border:1px solid #fecaca;">Remove</button>
+    </div>
+  `).join('');
+  box.querySelectorAll('[data-revoke]').forEach((btn) => {
+    btn.onclick = async () => {
+      if (!(await appConfirm('Remove this keypad? That tablet will stop clocking people in straight away.'))) return;
+      btn.disabled = true;
+      const { error: revErr } = await db.rpc('keypad_revoke_device', { p_id: btn.dataset.revoke });
+      if (revErr) {
+        btn.disabled = false;
+        return alert(revErr.message || 'Could not remove that keypad.');
+      }
+      renderKeypadDevices();
+    };
+  });
+}
+
+function drawKeypadQr() {
+  const canvas = document.getElementById('keypad-qr');
+  if (!canvas || !window.QRCode || typeof window.QRCode.toCanvas !== 'function') return;
+  window.QRCode.toCanvas(canvas, 'https://timerogue.app/keypad', { width: 180, margin: 1 }, () => {});
+}
+
+async function leaveKeypadDevice() {
+  const email = (document.getElementById('keypad-leave-email')?.value || '').trim();
+  const password = document.getElementById('keypad-leave-password')?.value || '';
+  const status = document.getElementById('keypad-leave-status');
+  const setStatus = (msg, color) => {
+    if (!status) return;
+    status.textContent = msg;
+    status.style.color = color || '#64748b';
+  };
+  if (!email.includes('@')) {
+    setStatus("That doesn't look like an email. If you're trying to clock in, use the shop keypad.", '#b45309');
+    return;
+  }
+  if (!password) {
+    setStatus('Enter the owner password.', '#b45309');
+    return;
+  }
+  const token = window._keypadDeviceToken || readKeypadDeviceToken();
+  setStatus('Checking…', '#64748b');
+  const signedIn = await db.auth.signInWithPassword({ email, password });
+  if (signedIn.error) {
+    setStatus('That email or password is not the owner login.', '#dc2626');
+    return;
+  }
+  const userId = signedIn.data?.user?.id;
+  const profile = userId
+    ? await db.from('profiles').select('id').eq('id', userId).maybeSingle()
+    : { data: null };
+  if (!profile.data) {
+    try { await db.auth.signOut({ scope: 'local' }); } catch (err) { /* staff session must not stay */ }
+    clearLocalAuth();
+    setStatus('That email or password is not the owner login.', '#dc2626');
+    return;
+  }
+  const revoked = await db.rpc('keypad_revoke_token', { p_token: token });
+  try { await db.auth.signOut({ scope: 'local' }); } catch (err) { /* still clear the local business session */ }
+  clearLocalAuth();
+  currentUser = null;
+  if (revoked.error) {
+    setStatus(revoked.error.message || 'Only the business owner can remove this keypad.', '#dc2626');
+    return;
+  }
+  try { localStorage.removeItem(KEYPAD_DEVICE_KEY); } catch (err) { /* server already revoked it */ }
+  window._keypadDeviceToken = null;
+  window._keypadDeviceLogo = null;
+  window._keypadGeo = null;
+  window._keypadOwnerId = null;
+  const modal = document.getElementById('keypad-leave-modal');
+  if (modal) modal.style.display = 'none';
+  const emailEl = document.getElementById('keypad-leave-email');
+  const passwordEl = document.getElementById('keypad-leave-password');
+  if (emailEl) emailEl.value = '';
+  if (passwordEl) passwordEl.value = '';
+  showKeypadUnset();
+}
+
 function formatHHMM(date) {
   const d = date instanceof Date ? date : new Date(date);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -611,6 +895,11 @@ function formatHHMM(date) {
 function showKiosk() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('kiosk-screen').classList.add('active');
+  const paired = !!window._keypadDeviceToken;
+  const other = document.getElementById('keypad-other-logins');
+  const leave = document.getElementById('keypad-leave-wrap');
+  if (other) other.style.display = paired ? 'none' : '';
+  if (leave) leave.style.display = paired ? 'block' : 'none';
   showPin();
   updateShopLogo();
 }
@@ -782,6 +1071,10 @@ async function memberLogin(e) {
   e.preventDefault();
   const email = document.getElementById('member-email').value.trim();
   const password = document.getElementById('member-password').value;
+  if (!email.includes('@')) {
+    alert("That doesn't look like an email. If you're trying to clock in, use the shop keypad.");
+    return;
+  }
   const { data, error } = await db.auth.signInWithPassword({ email, password });
   if (error) {
     if (/confirm/i.test(error.message)) {
@@ -1166,6 +1459,10 @@ async function login(e) {
     alert('Please enter both email and password');
     return;
   }
+  if (!email.includes('@')) {
+    alert("That doesn't look like an email. If you're trying to clock in, use the shop keypad.");
+    return;
+  }
 
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -1308,14 +1605,25 @@ function handleKey(d) {
 }
 
 async function validatePin() {
-  if (currentPin.length !== 4 || !currentUser) return;
-  const ownerId = window._keypadOwnerId || currentUser.id;
-  const { data, error } = await db.rpc('keypad_verify_pin', {
-    p_owner_id: ownerId,
-    p_pin: currentPin
-  });
+  if (currentPin.length !== 4) return;
+  if (!window._keypadDeviceToken && !currentUser) return;
+  let data;
+  let error;
+  if (window._keypadDeviceToken) {
+    ({ data, error } = await db.rpc('keypad_device_verify_pin', {
+      p_token: window._keypadDeviceToken,
+      p_pin: currentPin
+    }));
+  } else {
+    const ownerId = window._keypadOwnerId || currentUser.id;
+    ({ data, error } = await db.rpc('keypad_verify_pin', {
+      p_owner_id: ownerId,
+      p_pin: currentPin
+    }));
+  }
   const staff = Array.isArray(data) ? data[0] : data;
   if (error || !staff) {
+    if (dropRemovedKeypad(error)) return;
     showStatus(error?.message || 'Invalid PIN', 'error');
     currentPin = '';
     updatePinDots();
@@ -1330,7 +1638,18 @@ async function validatePin() {
 
 async function showActions() {
   let last = null;
-  if (window._keypadOwnerId) {
+  if (window._keypadDeviceToken) {
+    const { data, error } = await db.rpc('keypad_device_last_clock', {
+      p_token: window._keypadDeviceToken,
+      p_staff_id: currentStaff.id
+    });
+    if (error) {
+      if (dropRemovedKeypad(error)) return;
+      showStatus(error.message || 'Could not load the last clock', 'error');
+      return;
+    }
+    if (data) last = { type: data };
+  } else if (window._keypadOwnerId) {
     const { data } = await db.rpc('keypad_last_clock', {
       p_owner_id: window._keypadOwnerId,
       p_staff_id: currentStaff.id
@@ -1363,10 +1682,35 @@ async function showActions() {
 }
 
 async function recordAction(type) {
-  const ownerId = window._keypadOwnerId || currentUser.id;
   const buttons = document.getElementById('action-buttons');
   if (buttons) buttons.innerHTML = '';
   showStatus('Recording…');
+  if (window._keypadDeviceToken) {
+    if (type === 'in' || type === 'out') {
+      const geo = window._keypadGeo;
+      if (geo?.geofence_enabled && geo.geofence_lat && geo.geofence_lng) {
+        const ok = await checkGeofence(geo.geofence_lat, geo.geofence_lng);
+        if (!ok) {
+          showStatus('You must be within 50m of the workplace to clock ' + type, 'error');
+          showActions();
+          return;
+        }
+      }
+    }
+    const { error } = await db.rpc('keypad_device_clock', {
+      p_token: window._keypadDeviceToken,
+      p_staff_id: currentStaff.id,
+      p_type: type,
+      p_pin: currentPin
+    });
+    if (error) {
+      if (dropRemovedKeypad(error)) return;
+      showStatus(error.message || 'Error recording', 'error');
+      showActions();
+      return;
+    }
+  } else {
+  const ownerId = window._keypadOwnerId || currentUser.id;
   if (type === 'in' || type === 'out') {
     const { data: allowed } = await db.rpc('keypad_can_clock', { p_owner_id: ownerId });
     if (allowed === false) {
@@ -1394,6 +1738,7 @@ async function recordAction(type) {
     showStatus(error.message || 'Error recording', 'error');
     showActions();
     return;
+  }
   }
   const labels = { in: 'Clocked in', out: 'Clocked out', break_start: 'Break started', break_end: 'Break ended' };
   showStatus(`${labels[type] || 'Recorded'} at ${formatHHMM(new Date())}, ${currentStaff.name}`);
@@ -1430,6 +1775,10 @@ function showStatus(msg, type = '') {
 }
 
 async function updateShopLogo() {
+  if (window._keypadDeviceToken) {
+    paintShopLogo(window._keypadDeviceLogo || null);
+    return;
+  }
   const ownerId = window._keypadOwnerId || currentUser?.id;
   if (!ownerId) return;
   let logoUrl = null;
@@ -1440,6 +1789,10 @@ async function updateShopLogo() {
     const { data: profile } = await db.from('profiles').select('logo_url').eq('id', ownerId).single();
     logoUrl = profile?.logo_url;
   }
+  paintShopLogo(logoUrl);
+}
+
+function paintShopLogo(logoUrl) {
   document.querySelectorAll('.shop-logo-placeholder').forEach(el => {
     if (logoUrl) {
       el.classList.add('has-logo');
@@ -1703,8 +2056,16 @@ async function loadSettings() {
       <button type="submit" style="margin-left:0.5rem;">Upload Logo</button>
     </form>
 
+    <h3 style="margin-top:2rem;">Shop keypad</h3>
+    <p style="color:#64748b; font-size:0.9rem;">On the shop tablet, while you are logged in, set this device up as the keypad. Staff then only enter their PIN. You are logged out of the business account on that tablet.</p>
+    <button type="button" id="pair-keypad-btn" style="background:#0f172a; color:white; margin:0.5rem 0;">Set up this device as the keypad</button>
+    <p style="margin:0.75rem 0 0.25rem;">Keypad address</p>
+    <p style="margin:0 0 0.5rem;"><a href="https://timerogue.app/keypad">https://timerogue.app/keypad</a></p>
+    <canvas id="keypad-qr" width="180" height="180" style="background:white;"></canvas>
+    <div id="keypad-devices" style="margin-top:1rem; max-width:420px;"></div>
+
     <h3 style="margin-top:2rem;">Clock-In Keypad Login</h3>
-    <p style="color:#64748b; font-size:0.9rem;">Set a username and password for the tablet. Staff use these to open the clock-in keypad without the owner login. Username must be unique and at least 6 characters.</p>
+    <p style="color:#64748b; font-size:0.9rem;">Fallback if a tablet is not paired. Username must be unique and at least 6 characters. Staff should not use this.</p>
     <form id="keypad-login-form" style="display:flex; flex-direction:column; gap:0.5rem; max-width:320px; margin-top:0.5rem;">
       <input type="text" id="keypad-username-set" placeholder="Username (min 6 characters)" minlength="6" value="${profile?.keypad_username || ''}" required>
       <input type="password" id="keypad-password-set" placeholder="Password (min 6 characters)" minlength="6" required>
@@ -1773,7 +2134,9 @@ async function saveMemberNotifications(staffId) {
 window.saveMemberNotifications = saveMemberNotifications;
   document.getElementById('logo-form').onsubmit = uploadLogo;
   document.getElementById('keypad-login-form').onsubmit = saveKeypadLogin;
-  document.getElementById('keypad-login-form').onsubmit = saveKeypadLogin;
+  document.getElementById('pair-keypad-btn').onclick = pairThisKeypadDevice;
+  renderKeypadDevices();
+  drawKeypadQr();
   document.querySelectorAll('.clock-style-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       localStorage.setItem('clock_style', btn.dataset.style);

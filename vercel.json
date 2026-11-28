@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/employee", "destination": "/index.html" },
     { "source": "/login", "destination": "/index.html" },
-    { "source": "/portal", "destination": "/index.html" }
+    { "source": "/portal", "destination": "/index.html" },
+    { "source": "/keypad", "destination": "/index.html" }
   ]
 }
