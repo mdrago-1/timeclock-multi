@@ -84,8 +84,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Normal startup only if we didn't handle recovery or a portal setup link
     if (!recoveryHandled && !isPortalSetup) {
       const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+      const signedOut = await consumeBusinessSignOut();
       if (path === '/keypad') {
         await openKeypadPath();
+      } else if (signedOut) {
+        closeBusinessLogin();
+        if (path === '/employee' || path === '/portal') showMemberLogin();
+        else showAuth();
       } else {
       const { data: { session } } = await db.auth.getSession();
       if (session) {
@@ -237,6 +242,9 @@ function setupEventListeners() {
   document.getElementById('kiosk-code-cancel')?.addEventListener('click', hideKioskLoginPanel);
   document.getElementById('admin-btn')?.addEventListener('click', showAdminPassword);
   document.getElementById('exit-admin')?.addEventListener('click', exitAdmin);
+  window.addEventListener('pagehide', () => {
+    if (businessJustSignedOut()) clearLocalAuth();
+  });
   document.getElementById('back-to-pin')?.addEventListener('click', showPin);
   document.getElementById('member-btn')?.addEventListener('click', showMemberLogin);
   document.getElementById('home-member-btn')?.addEventListener('click', showMemberLogin);
@@ -573,31 +581,31 @@ async function exitAdmin() {
     btn.textContent = 'Signing out…';
   }
   const accessToken = readStoredAccessToken();
-  try {
-    const { error } = await db.auth.signOut({ scope: 'local' });
-    if (error) throw error;
-  } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Exit';
-    }
-    alert(err.message || 'Could not sign out. Stay on this page and try again.');
-    return;
-  }
+  // Drop the saved login before any waiting, so a reload cannot reopen the dashboard.
+  try { db.auth.stopAutoRefresh(); } catch (err) { /* refresh may already be stopped */ }
+  markBusinessSignedOut();
   currentUser = null;
   clearKeypadSession();
+  closeBusinessLogin();
   showAuth();
+  try {
+    await db.auth.signOut({ scope: 'local' });
+  } catch (err) { /* the stored login is already gone */ }
+  clearLocalAuth();
   if (accessToken) {
-    fetch(SUPABASE_URL + '/auth/v1/logout?scope=global', {
-      method: 'POST',
-      keepalive: true,
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      }
-    }).catch(() => {});
+    try {
+      await fetch(SUPABASE_URL + '/auth/v1/logout?scope=global', {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: 'Bearer ' + accessToken,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (err) { /* this browser is already signed out */ }
   }
+  clearLocalAuth();
 }
 
 function readStoredAccessToken() {
@@ -621,6 +629,43 @@ function clearLocalAuth() {
     }
     keys.forEach((key) => localStorage.removeItem(key));
   } catch (err) { /* sign-out already requested */ }
+}
+
+const SIGNED_OUT_FLAG = 'timerogue_signed_out';
+
+function markBusinessSignedOut() {
+  try { sessionStorage.setItem(SIGNED_OUT_FLAG, '1'); } catch (err) { /* storage may be blocked */ }
+  clearLocalAuth();
+}
+
+function businessJustSignedOut() {
+  try { return sessionStorage.getItem(SIGNED_OUT_FLAG) === '1'; } catch (err) { return false; }
+}
+
+function clearBusinessSignedOutFlag() {
+  try { sessionStorage.removeItem(SIGNED_OUT_FLAG); } catch (err) { /* already clear */ }
+}
+
+async function consumeBusinessSignOut() {
+  if (!businessJustSignedOut()) return false;
+  try { db.auth.stopAutoRefresh(); } catch (err) { /* refresh may already be stopped */ }
+  clearLocalAuth();
+  try { await db.auth.signOut({ scope: 'local' }); } catch (err) { /* storage is already clear */ }
+  clearLocalAuth();
+  clearBusinessSignedOutFlag();
+  currentUser = null;
+  return true;
+}
+
+function closeBusinessLogin() {
+  const modal = document.getElementById('login-modal');
+  if (modal) modal.style.display = 'none';
+  const email = document.getElementById('email');
+  const password = document.getElementById('password');
+  if (email) email.value = '';
+  if (password) password.value = '';
+  const form = document.getElementById('auth-form');
+  if (form) form.reset();
 }
 
 function restoreKeypadSession(path) {
@@ -718,8 +763,11 @@ async function pairThisKeypadDevice() {
   if (!currentUser) return alert('Log in as the business owner on this tablet first.');
   const ok = await appConfirm('This tablet will show the PIN pad only. The business login will be signed out on this device. Staff will clock in with their PIN and will not see pay or timesheets.');
   if (!ok) return;
-  const typed = window.prompt('Name this keypad', 'Shop tablet');
-  if (typed === null) return;
+  const typed = await askKeypadName();
+  if (typed === null) {
+    alert('Keypad setup was cancelled. This tablet was not paired.');
+    return;
+  }
   const name = typed.trim() || 'Shop tablet';
   const button = document.getElementById('pair-keypad-btn');
   if (button) button.disabled = true;
@@ -825,10 +873,48 @@ async function renderKeypadDevices() {
   });
 }
 
+function askKeypadName() {
+  return new Promise((resolve) => {
+    let modal = document.getElementById('keypad-name-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'keypad-name-modal';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:400; display:none; align-items:center; justify-content:center; padding:1rem; font-family:Inter,system-ui,sans-serif;';
+      modal.innerHTML = `
+        <div style="background:#fff; color:#0f172a; border-radius:12px; padding:1.5rem; max-width:380px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+          <h3 style="margin:0 0 0.5rem;">Name this keypad</h3>
+          <p style="color:#64748b; font-size:0.9rem; margin:0 0 1rem;">This name is shown in Settings so you can tell tablets apart.</p>
+          <input type="text" id="keypad-name-input" maxlength="80" style="width:100%; padding:0.6rem; margin-bottom:0.75rem; box-sizing:border-box;">
+          <div style="display:flex; gap:0.5rem; justify-content:center;">
+            <button type="button" id="keypad-name-cancel" style="background:#fff; color:#0f172a; border:1px solid #e2e8f0;">Cancel</button>
+            <button type="button" id="keypad-name-ok" style="background:#0f172a; color:#fff; border:none;">Set up keypad</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+    const input = document.getElementById('keypad-name-input');
+    const finish = (value) => {
+      modal.style.display = 'none';
+      input.onkeydown = null;
+      resolve(value);
+    };
+    input.value = 'Shop tablet';
+    modal.style.display = 'flex';
+    document.getElementById('keypad-name-ok').onclick = () => finish((input.value || '').trim() || 'Shop tablet');
+    document.getElementById('keypad-name-cancel').onclick = () => finish(null);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') finish((input.value || '').trim() || 'Shop tablet');
+      if (e.key === 'Escape') finish(null);
+    };
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  });
+}
+
 function drawKeypadQr() {
-  const canvas = document.getElementById('keypad-qr');
-  if (!canvas || !window.QRCode || typeof window.QRCode.toCanvas !== 'function') return;
-  window.QRCode.toCanvas(canvas, 'https://timerogue.app/keypad', { width: 180, margin: 1 }, () => {});
+  const image = document.getElementById('keypad-qr');
+  if (!image) return;
+  image.src = 'keypad-qr.svg?v=1';
+  image.alt = 'QR code for https://timerogue.app/keypad';
 }
 
 async function leaveKeypadDevice() {
@@ -929,6 +1015,8 @@ function checkAdminPassword(e) {
 }
 
 function showAdmin() {
+  closeBusinessLogin();
+  clearBusinessSignedOutFlag();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('admin-screen').classList.add('active');
   renderTrialBanner();
@@ -2061,7 +2149,7 @@ async function loadSettings() {
     <button type="button" id="pair-keypad-btn" style="background:#0f172a; color:white; margin:0.5rem 0;">Set up this device as the keypad</button>
     <p style="margin:0.75rem 0 0.25rem;">Keypad address</p>
     <p style="margin:0 0 0.5rem;"><a href="https://timerogue.app/keypad">https://timerogue.app/keypad</a></p>
-    <canvas id="keypad-qr" width="180" height="180" style="background:white;"></canvas>
+    <img id="keypad-qr" src="keypad-qr.svg?v=1" width="180" height="180" alt="QR code for https://timerogue.app/keypad" style="width:180px; height:180px; background:#fff; display:block;">
     <div id="keypad-devices" style="margin-top:1rem; max-width:420px;"></div>
 
     <h3 style="margin-top:2rem;">Clock-In Keypad Login</h3>
